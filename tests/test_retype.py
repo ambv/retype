@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from functools import partial
 from textwrap import dedent
 from unittest import main, TestCase
 
@@ -72,6 +71,43 @@ class ImportTestCase(RetypeTestCase):
 
     def test_unmatched7(self):
         self._test_unmatched("from .x import x")
+
+
+class FromImportTestCase(ImportTestCase):
+    IMPORT = "from y import x"
+
+    def test_matched1(self):
+        self._test_matched("from y import x as x")
+
+    def test_matched2(self):
+        self._test_matched("from y import z, y, x")
+
+    def test_matched3(self):
+        self._test_matched("from y import z as y, x")
+
+    def test_unmatched1(self):
+        self._test_unmatched("from y import y as x")
+
+    def test_unmatched2(self):
+        self._test_unmatched("from y import x as y")
+
+    def test_unmatched3(self):
+        self._test_unmatched("from .y import x")
+
+    def test_unmatched4(self):
+        self._test_unmatched("import y.x")
+
+    def test_unmatched5(self):
+        self._test_unmatched("import y")
+
+    def test_unmatched6(self):
+        self._test_unmatched("from . import x")
+
+    def test_unmatched7(self):
+        self._test_unmatched("from .y import x")
+
+    def test_unmatched8(self):
+        self._test_unmatched("import x")
 
 
 if __name__ == '__main__':
