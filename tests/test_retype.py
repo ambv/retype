@@ -20,6 +20,27 @@ class RetypeTestCase(TestCase):
         self.longMessage = False
         self.assertEqual(expected, src, f"\n{expected!r} != \n{src!r}")
 
+    def assertReapplyVisible(self, pyi_txt, src_txt, expected_txt):
+        pyi = ast3.parse(dedent(pyi_txt))
+        src = lib2to3_parse(dedent(src_txt))
+        expected = lib2to3_parse(dedent(expected_txt))
+        for node in pyi.body:
+            reapply(node, src)
+        self.longMessage = False
+        self.assertEqual(
+            str(expected),
+            str(src),
+            f"\n{str(expected)!r} != \n{str(src)!r}",
+        )
+
+    def assertReapplyRaises(self, pyi_txt, src_txt, expected_exception):
+        with self.assertRaises(expected_exception) as ctx:
+            pyi = ast3.parse(dedent(pyi_txt))
+            src = lib2to3_parse(dedent(src_txt))
+            for node in pyi.body:
+                reapply(node, src)
+        return ctx.exception
+
 
 class ImportTestCase(RetypeTestCase):
     IMPORT = "import x"
@@ -109,6 +130,49 @@ class FromImportTestCase(ImportTestCase):
     def test_unmatched8(self):
         self._test_unmatched("import x")
 
+
+class FunctionAnnotationTestCase(RetypeTestCase):
+    # def assertReapply(self, pyi_txt, src_txt, expected_txt)
+
+    def test_missing_return_value_both(self):
+        pyi_txt = "def fun(): ...\n"
+        src_txt = "def fun(): ...\n"
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 1:1: .pyi file is missing " +
+            "return value and source doesn't provide it either",
+            str(exception),
+        )
+
+    def test_missing_return_value_pyi(self):
+        pyi_txt = "def fun(): ...\n"
+        src_txt = "def fun() -> None: ...\n"
+        expected_txt = "def fun() -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_missing_return_value_src(self):
+        pyi_txt = "def fun() -> None: ...\n"
+        src_txt = "def fun(): ...\n"
+        expected_txt = "def fun() -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_return_value(self):
+        # Note: the current tuple formatting is unfortunate, this is how
+        # astunparse deals with it currently.
+        pyi_txt = "def fun() -> List[Tuple[int, int]]: ...\n"
+        src_txt = "def fun(): ...\n"
+        expected_txt = "def fun() -> List[Tuple[(int, int)]]: ...\n"
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_mismatched_return_value(self):
+        pyi_txt = "def fun() -> List[Tuple[int, int]]: ...\n"
+        src_txt = "def fun() -> List[int]: ...\n"
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 1:1: incompatible existing " +
+            "return value. Expected: 'List[Tuple[(int, int)]]', actual: 'List[int]'",
+            str(exception),
+        )
 
 if __name__ == '__main__':
     main()

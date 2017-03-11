@@ -10,10 +10,12 @@ from lib2to3.pgen2 import token
 from lib2to3.pgen2.parse import ParseError
 from lib2to3.refactor import _detect_future_features
 from lib2to3.pygram import python_symbols as syms
-from lib2to3.pytree import Node, Leaf
+from lib2to3.pytree import Node, Leaf, type_repr
 from pathlib import Path
+import re
 import sys
 
+import astunparse
 import click
 from typed_ast import ast3
 
@@ -180,6 +182,40 @@ def _r_import(import_, node):
         append_after_imports(imp, node)
 
 
+@reapply.register(ast3.FunctionDef)
+def _r_functiondef(fun, node):
+    assert node.type in (syms.file_input, syms.classdef)
+    name = Leaf(token.NAME, fun.name)
+    args = fun.args
+    returns = fun.returns
+    for child in node.children:
+        if child.type == syms.decorated:
+            # skip decorators
+            child = child.children[1]
+
+        if child.type == syms.funcdef:
+            offset = 1
+        elif child.type == syms.async_funcdef:
+            offset = 2
+        else:
+            continue
+
+        if child.children[offset] == name:
+            lineno = child.get_lineno()
+            column = 1
+            try:
+                annotate_parameters(child.children[offset + 1], args)
+                annotate_return(child.children, returns, offset + 2)
+            except ValueError as ve:
+                raise ValueError(
+                    f"Annotation problem in function {name.value!r}: " +
+                    f"{lineno}:{column}: {ve}"
+                ) from None
+            break
+    else:
+        raise ValueError(f"Function {name.value!r} not found in source.")
+
+
 @singledispatch
 def names_already_imported(names, node):
     """Returns True if `node` represents `names`."""
@@ -290,6 +326,50 @@ def append_after_imports(stmt_to_insert, node):
             insert_after = index
 
     node.children.insert(insert_after + 1, stmt_to_insert)
+
+
+def annotate_parameters(parameters, ast_args):
+    ...
+
+
+_colon = Leaf(token.COLON, ':')
+_rarrow = Leaf(token.RARROW, '->', prefix=' ')
+
+
+def annotate_return(function, ast_returns, offset):
+    if ast_returns is None:
+        if function[offset] == _colon:
+            raise ValueError(
+                f".pyi file is missing return value and source doesn't "
+                f"provide it either"
+            )
+        elif function[offset] == _rarrow:
+            # Source-provided return value, this is fine.
+            return
+
+        raise ValueError(f"unexpected return token: {str(function[offset])!r}")
+
+    ret_stmt = Leaf(
+        token.NAME,
+        minimize_whitespace(astunparse.unparse(ast_returns)),
+        prefix=" ",
+    )
+    if function[offset] == _rarrow:
+        existing_return = minimize_whitespace(str(function[offset + 1]))
+        if existing_return != ret_stmt.value:
+            raise ValueError(
+                f"incompatible existing return value. Expected: " +
+                f"{ret_stmt.value!r}, actual: {existing_return!r}"
+            )
+    elif function[offset] == _colon:
+        function.insert(offset, _rarrow)
+        function.insert(offset + 1, ret_stmt)
+    else:
+        raise ValueError(f"unexpected return token: {str(function[offset])!r}")
+
+
+def minimize_whitespace(text):
+    return re.sub(r'[\n\t ]+', ' ', text, re.MULTILINE).strip()
 
 
 if __name__ == '__main__':
