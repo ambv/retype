@@ -9,7 +9,7 @@ Re-apply type annotations from .pyi stubs to your codebase.
 
 Things to be done:
 
-* [✓] reapply typing imports
+* [x] reapply typing imports
 * [ ] reapply function argument annotations
 * [ ] reapply function return value annotations
 * [ ] reapply module-level field annotations (and aliases)
