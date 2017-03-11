@@ -30,11 +30,28 @@ Directory = partial(
 
 
 @click.command()
-@click.option('--src-dir', type=Directory(), default='.')
-@click.option('--pyi-dir', type=Directory(), default='types')
 @click.option(
-    '--target-dir', type=Directory(exists=False, writable=True), default='typed-src'
+    '--src-dir',
+    type=Directory(),
+    default='.',
+    help='Where to find sources.',
+    show_default=True
 )
+@click.option(
+    '--pyi-dir',
+    type=Directory(),
+    default='types',
+    help='Where to find .pyi stubs.',
+    show_default=True,
+)
+@click.option(
+    '--target-dir',
+    type=Directory(exists=False, writable=True),
+    default='typed-src',
+    help='Where to write annotated sources.',
+    show_default=True,
+)
+@click.version_option(version=__version__)
 def main(src_dir, pyi_dir, target_dir):
     """Re-apply type annotations from .pyi stubs to your codebase."""
     returncode = 0
