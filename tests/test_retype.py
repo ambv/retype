@@ -131,9 +131,7 @@ class FromImportTestCase(ImportTestCase):
         self._test_unmatched("import x")
 
 
-class FunctionAnnotationTestCase(RetypeTestCase):
-    # def assertReapply(self, pyi_txt, src_txt, expected_txt)
-
+class FunctionReturnTestCase(RetypeTestCase):
     def test_missing_return_value_both(self):
         pyi_txt = "def fun(): ...\n"
         src_txt = "def fun(): ...\n"
@@ -173,6 +171,107 @@ class FunctionAnnotationTestCase(RetypeTestCase):
             "return value. Expected: 'List[Tuple[(int, int)]]', actual: 'List[int]'",
             str(exception),
         )
+
+
+class FunctionArgumentTestCase(RetypeTestCase):
+    def test_missing_ann_both(self):
+        pyi_txt = "def fun(a1) -> None: ...\n"
+        src_txt = "def fun(a1) -> None: ...\n"
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 1:1: .pyi file is missing " +
+            "annotation for 'a1' and source doesn't provide it either",
+            str(exception),
+        )
+
+    def test_missing_arg(self):
+        pyi_txt = "def fun(a1) -> None: ...\n"
+        src_txt = "def fun(a2) -> None: ...\n"
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 1:1: .pyi file expects " +
+            "argument 'a1' next but argument 'a2' found in source",
+            str(exception),
+        )
+
+    def test_missing_arg_kwonly(self):
+        pyi_txt = "def fun(a1) -> None: ...\n"
+        src_txt = "def fun(*, a1) -> None: ...\n"
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 1:1: " +
+            "missing regular argument 'a1' in source",
+            str(exception),
+        )
+
+    def test_missing_default_arg_src(self):
+        pyi_txt = "def fun(a1=None) -> None: ...\n"
+        src_txt = "def fun(a1) -> None: ...\n"
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 1:1: " +
+            "source file does not specify default value for arg `a1` but the " +
+            ".pyi file does",
+            str(exception),
+        )
+
+    def test_missing_default_arg_pyi(self):
+        pyi_txt = "def fun(a1) -> None: ...\n"
+        src_txt = "def fun(a1=None) -> None: ...\n"
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 1:1: " +
+            ".pyi file does not specify default value for arg `a1` but the " +
+            "source does",
+            str(exception),
+        )
+
+    def test_missing_ann_pyi(self):
+        pyi_txt = "def fun(a1) -> None: ...\n"
+        src_txt = "def fun(a1: str) -> None: ...\n"
+        expected_txt = "def fun(a1: str) -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_missing_ann_src(self):
+        pyi_txt = "def fun(a1: str) -> None: ...\n"
+        src_txt = "def fun(a1) -> None: ...\n"
+        expected_txt = "def fun(a1: str) -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_no_args(self):
+        pyi_txt = "def fun() -> None: ...\n"
+        src_txt = "def fun() -> None: ...\n"
+        expected_txt = "def fun() -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_ann(self):
+        # Note: the current tuple formatting is unfortunate, this is how
+        # astunparse deals with it currently.
+        pyi_txt = "def fun(a1: List[Tuple[int, int]]) -> None: ...\n"
+        src_txt = "def fun(a1) -> None: ...\n"
+        expected_txt = "def fun(a1: List[Tuple[(int, int)]]) -> None: ...\n"
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_ann_with_default(self):
+        # Note: the current tuple formatting is unfortunate, this is how
+        # astunparse deals with it currently.
+        pyi_txt = "def fun(a1: List[Tuple[int, int]] = None) -> None: ...\n"
+        src_txt = "def fun(a1=None) -> None: ...\n"
+        expected_txt = "def fun(a1: List[Tuple[(int, int)]] = None) -> None: ...\n"
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_sig1(self):
+        pyi_txt = "def fun(a1: str, *args: str, kwonly1: int, **kwargs) -> None: ...\n"
+        src_txt = "def fun(a1, *args, kwonly1=None, **kwargs) -> None: ...\n"
+        expected_txt = "def fun(a1: str, *args: str, kwonly1: int = None, **kwargs) -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_sig2(self):
+        pyi_txt = "def fun(a1: str, *, kwonly1: int, **kwargs) -> None: ...\n"
+        src_txt = "def fun(a1, *, kwonly1=None, **kwargs) -> None: ...\n"
+        expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs) -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
 
 if __name__ == '__main__':
     main()

@@ -210,7 +210,7 @@ def _r_functiondef(fun, node):
                 raise ValueError(
                     f"Annotation problem in function {name.value!r}: " +
                     f"{lineno}:{column}: {ve}"
-                ) from None
+                )
             break
     else:
         raise ValueError(f"Function {name.value!r} not found in source.")
@@ -328,8 +328,110 @@ def append_after_imports(stmt_to_insert, node):
     node.children.insert(insert_after + 1, stmt_to_insert)
 
 
+_comma = Leaf(token.COMMA, ',')
+_eq = Leaf(token.EQUAL, '=', prefix=" ")
+_star = Leaf(token.STAR, '*')
+_dstar = Leaf(token.DOUBLESTAR, '**')
+
+
 def annotate_parameters(parameters, ast_args):
-    ...
+    params = parameters.children[1:-1]
+    if len(params) == 0:
+        return  # FIXME: handle checking if the expected (AST) function is also empty.
+    elif len(params) > 1:
+        raise NotImplementedError(f"unknown AST structure in parameters: {params}")
+
+    # Simplify the possible data structures so we can just pull from it.
+    if params[0].type == syms.typedargslist:
+        params = params[0].children
+
+    typedargslist = []
+
+    num_args_no_defaults = len(ast_args.args) - len(ast_args.defaults)
+    defaults = [None] * num_args_no_defaults + ast_args.defaults
+    typedargslist.extend(gen_annotated_params(ast_args.args, defaults, params))
+    if ast_args.vararg or ast_args.kwonlyargs:
+        try:
+            hopefully_star, hopefully_vararg = pop_param(params)
+            if hopefully_star != _star:
+                raise ValueError
+        except (IndexError, ValueError):
+            raise ValueError(
+                f".pyi file expects *args or keyword-only arguments in source"
+            ) from None
+        else:
+            typedargslist.append(new(_comma))
+            typedargslist.append(new(hopefully_star))
+
+    if ast_args.vararg:
+        if hopefully_vararg.type == syms.tname:
+            hopefully_vararg_name = hopefully_vararg.children[0].value
+        else:
+            hopefully_vararg_name = hopefully_vararg.value
+        if hopefully_vararg_name != ast_args.vararg.arg:
+            raise ValueError(
+                f".pyi file expects *{ast_args.vararg.arg} in source"
+            )
+
+        typedargslist.append(
+            get_annotated_param(hopefully_vararg, ast_args.vararg, missing_ok=True)
+        )
+
+    if ast_args.kwonlyargs:
+        if not ast_args.vararg:
+            if hopefully_vararg != _comma:
+                raise ValueError(
+                    f".pyi file expects keyword-only arguments but " +
+                    f"*{str(hopefully_vararg).strip()} found in source"
+                )
+
+        typedargslist.extend(
+            gen_annotated_params(
+                ast_args.kwonlyargs,
+                ast_args.kw_defaults,
+                params,
+                implicit_default=True,
+            )
+        )
+
+    if ast_args.kwarg:
+        try:
+            hopefully_dstar, hopefully_kwarg = pop_param(params)
+            if hopefully_kwarg.type == syms.tname:
+                hopefully_kwarg_name = hopefully_kwarg.children[0].value
+            else:
+                hopefully_kwarg_name = hopefully_kwarg.value
+            if hopefully_dstar != _dstar or hopefully_kwarg_name != ast_args.kwarg.arg:
+                raise ValueError
+        except (IndexError, ValueError):
+            raise ValueError(
+                f".pyi file expects **{ast_args.kwarg.arg} in source"
+            ) from None
+        else:
+            typedargslist.append(new(_comma))
+            typedargslist.append(new(hopefully_dstar))
+            typedargslist.append(
+                get_annotated_param(hopefully_kwarg, ast_args.kwarg, missing_ok=True)
+            )
+
+    if typedargslist:
+        typedargslist = typedargslist[1:]  # drop the initial comma
+        if len(typedargslist) == 1:
+            # don't pack a single argument to be consistent with how lib2to3
+            # parses existing code.
+            body = typedargslist[0]
+        else:
+            body = Node(syms.typedargslist, typedargslist)
+        parameters.children = [
+            parameters.children[0],  # (
+            body,
+            parameters.children[-1],  # )
+        ]
+    else:
+        parameters.children = [
+            parameters.children[0],  # (
+            parameters.children[-1],  # )
+        ]
 
 
 _colon = Leaf(token.COLON, ':')
@@ -340,14 +442,14 @@ def annotate_return(function, ast_returns, offset):
     if ast_returns is None:
         if function[offset] == _colon:
             raise ValueError(
-                f".pyi file is missing return value and source doesn't "
-                f"provide it either"
+                ".pyi file is missing return value and source doesn't "
+                "provide it either"
             )
         elif function[offset] == _rarrow:
             # Source-provided return value, this is fine.
             return
 
-        raise ValueError(f"unexpected return token: {str(function[offset])!r}")
+        raise NotImplementedError(f"unexpected return token: {str(function[offset])!r}")
 
     ret_stmt = Leaf(
         token.NAME,
@@ -362,14 +464,131 @@ def annotate_return(function, ast_returns, offset):
                 f"{ret_stmt.value!r}, actual: {existing_return!r}"
             )
     elif function[offset] == _colon:
-        function.insert(offset, _rarrow)
+        function.insert(offset, new(_rarrow))
         function.insert(offset + 1, ret_stmt)
     else:
-        raise ValueError(f"unexpected return token: {str(function[offset])!r}")
+        raise NotImplementedError(f"unexpected return token: {str(function[offset])!r}")
 
 
 def minimize_whitespace(text):
     return re.sub(r'[\n\t ]+', ' ', text, re.MULTILINE).strip()
+
+
+def pop_param(params):
+    """Pops the parameter and the "remainder" (comma, default value).
+
+    Returns a tuple of ('name', default) or (_star, 'name') or (_dstar, 'name').
+    """
+    default = None
+
+    name = params.pop(0)
+    if name in (_star, _dstar):
+        default = params.pop(0)
+        if default == _comma:
+            return name, default
+
+    try:
+        remainder = params.pop(0)
+        if remainder == _eq:
+            default = params.pop(0)
+            remainder = params.pop(0)
+        if remainder != _comma:
+            raise ValueError(f"unexpected token: {remainder}")
+
+    except IndexError:
+        pass
+    return name, default
+
+
+_none = Leaf(token.NAME, 'None')
+
+
+def gen_annotated_params(args, defaults, params, implicit_default=False):
+    for arg, expected_default in zip(args, defaults):
+        yield new(_comma)
+
+        try:
+            param, actual_default = pop_param(params)
+        except IndexError:
+            raise ValueError(
+                f"missing regular argument {arg.arg!r} in source"
+            ) from None
+
+        if param in (_star, _dstar):
+            # unexpected *args, keyword-only args, or **kwargs
+            raise ValueError(f"missing regular argument {arg.arg!r} in source")
+
+        if expected_default is None and actual_default is not None:
+            if not implicit_default or actual_default != _none:
+                raise ValueError(
+                    f".pyi file does not specify default value for arg " +
+                    f"`{param.value}` but the source does"
+                )
+
+        if expected_default is not None and actual_default is None:
+            raise ValueError(
+                f"source file does not specify default value for arg `{param.value}` " +
+                f"but the .pyi file does"
+            )
+
+        yield get_annotated_param(param, arg)
+        if actual_default:
+            yield new(_eq)
+            yield new(actual_default, prefix=' ')
+
+
+def get_annotated_param(node, arg, missing_ok=False):
+    if node.type not in (token.NAME, syms.tname):
+        raise NotImplementedError(f"unexpected node token: `{node}`")
+
+    actual_ann = None
+    if node.type == syms.tname:
+        actual_ann = minimize_whitespace(str(node.children[2]))
+        node = node.children[0]
+    if arg.arg != node.value:
+        raise ValueError(
+            f".pyi file expects argument {arg.arg!r} next but argument " +
+            f"{node.value!r} found in source"
+        )
+
+    if arg.annotation is None and actual_ann is None:
+        if missing_ok:
+            return new(node)
+
+        raise ValueError(
+            f".pyi file is missing annotation for {arg.arg!r} and source " +
+            f"doesn't provide it either"
+        )
+
+    if arg.annotation is None:
+        ann = actual_ann
+    else:
+        ann = minimize_whitespace(astunparse.unparse(arg.annotation))
+
+    if actual_ann is None:
+        actual_ann = ann
+
+    if ann != actual_ann:
+        raise ValueError(
+            f"incompatible annotation for {arg.arg!r}. Expected: " +
+            f"{ann!r}, actual: {actual_ann!r}"
+        )
+
+    return Node(syms.tname, [new(node), new(_colon), Leaf(token.NAME, ann, prefix=' ')])
+
+
+def new(n, prefix=None):
+    """lib2to3's AST requires unique objects as children."""
+
+    if isinstance(n, Leaf):
+        return Leaf(n.type, n.value, prefix=n.prefix if prefix is None else prefix)
+
+    # this is hacky, we assume complex nodes are just being reused once from the
+    # original AST.
+    n.parent = None
+    if prefix is not None:
+        n.prefix = prefix
+    return n
 
 
 if __name__ == '__main__':

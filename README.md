@@ -10,7 +10,7 @@ Re-apply type annotations from .pyi stubs to your codebase.
 Things to be done:
 
 * [x] reapply typing imports
-* [ ] reapply function argument annotations
+* [x] reapply function argument annotations
 * [x] reapply function return value annotations
 * [ ] reapply method argument and return value annotations
 * [ ] reapply module-level field annotations (and aliases)
@@ -18,6 +18,7 @@ Things to be done:
 * [ ] reapply instance-level field annotations
 * [ ] add a --python2 option and remove print_statement by default
 * [ ] add the --keep-byte-literals option for Mercurial
+* [ ] handle if sys.version_info and sys.platform checks in stubs
 * [ ] warn about functions and classes with missing annotations
 
 
