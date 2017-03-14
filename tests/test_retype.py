@@ -194,13 +194,53 @@ class FunctionArgumentTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_missing_arg_kwonly(self):
+    def test_missing_arg2(self):
         pyi_txt = "def fun(a1) -> None: ...\n"
         src_txt = "def fun(*, a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
             "Annotation problem in function 'fun': 1:1: " +
             "missing regular argument 'a1' in source",
+            str(exception),
+        )
+
+    def test_missing_arg_kwonly(self):
+        pyi_txt = "def fun(*, a1) -> None: ...\n"
+        src_txt = "def fun(a1) -> None: ...\n"
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 1:1: " +
+            ".pyi file expects *args or keyword-only arguments in source",
+            str(exception),
+        )
+
+    def test_extra_arg1(self):
+        pyi_txt = "def fun() -> None: ...\n"
+        src_txt = "def fun(a1) -> None: ...\n"
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 1:1: " +
+            "extra arguments in source: a1",
+            str(exception),
+        )
+
+    def test_extra_arg2(self):
+        pyi_txt = "def fun() -> None: ...\n"
+        src_txt = "def fun(a1=None) -> None: ...\n"
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 1:1: " +
+            "extra arguments in source: a1=None",
+            str(exception),
+        )
+
+    def test_extra_arg_kwonly(self):
+        pyi_txt = "def fun() -> None: ...\n"
+        src_txt = "def fun(*, a1) -> None: ...\n"
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 1:1: " +
+            "extra arguments in source: *, a1",
             str(exception),
         )
 

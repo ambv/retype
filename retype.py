@@ -498,6 +498,14 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
                 get_annotated_param(hopefully_kwarg, ast_args.kwarg, missing_ok=True)
             )
 
+    if params:
+        extra_params = minimize_whitespace(
+            str(Node(syms.typedargslist, [new(p) for p in params]))
+        )
+        raise ValueError(
+            f"extra arguments in source: {extra_params}"
+        )
+
     if typedargslist:
         typedargslist = typedargslist[1:]  # drop the initial comma
         if len(typedargslist) == 1:
