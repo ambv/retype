@@ -79,7 +79,7 @@ def retype_path(path, srcs, targets):
             try:
                 retype_file(child, srcs, targets)
             except Exception as e:
-                yield (child, e)
+                yield (child, str(e))
         elif child.name.startswith('.'):
             continue  # silently ignore dot files.
         else:
@@ -182,15 +182,36 @@ def _r_import(import_, node):
         append_after_imports(imp, node)
 
 
-@reapply.register(ast3.FunctionDef)
-def _r_functiondef(fun, node):
-    assert node.type in (syms.file_input, syms.classdef)
-    name = Leaf(token.NAME, fun.name)
-    args = fun.args
-    returns = fun.returns
+@reapply.register(ast3.ClassDef)
+def _r_classdef(cls, node):
+    assert node.type == syms.file_input  # FIXME: support inner classes
+    name = Leaf(token.NAME, cls.name)
     for child in node.children:
         if child.type == syms.decorated:
             # skip decorators
+            child = child.children[1]
+        if child.type == syms.classdef and child.children[1] == name:
+            cls_node = child.children[-1]
+            break
+    else:
+        raise ValueError(f"Class {name.value!r} not found in source.")
+
+    for ast_elem in cls.body:
+        reapply(ast_elem, cls_node)
+
+
+@reapply.register(ast3.FunctionDef)
+def _r_functiondef(fun, node):
+    assert node.type in (syms.file_input, syms.suite)
+    name = Leaf(token.NAME, fun.name)
+    args = fun.args
+    returns = fun.returns
+    is_method = node.parent is not None and node.parent.type == syms.classdef
+    for child in node.children:
+        decorators = None
+        if child.type == syms.decorated:
+            # skip decorators
+            decorators = child.children[0]
             child = child.children[1]
 
         if child.type == syms.funcdef:
@@ -203,8 +224,30 @@ def _r_functiondef(fun, node):
         if child.children[offset] == name:
             lineno = child.get_lineno()
             column = 1
+
+            if is_method and decorators:
+                pyi_decorators = decorator_names(fun.decorator_list)
+                src_decorators = decorator_names(decorators)
+                pyi_builtin_decorators = list(
+                    filter(is_builtin_method_decorator, pyi_decorators)
+                ) or ['instancemethod']
+                src_builtin_decorators = list(
+                    filter(is_builtin_method_decorator, src_decorators)
+                ) or ['instancemethod']
+                if pyi_builtin_decorators != src_builtin_decorators:
+                    raise ValueError(
+                        f"Incompatible method kind for {fun.name!r}: " +
+                        f"{lineno}:{column}: Expected: " +
+                        f"{pyi_builtin_decorators[0]}, actual: " +
+                        f"{src_builtin_decorators[0]}"
+                    )
+
+                is_method = "staticmethod" not in pyi_decorators
+
             try:
-                annotate_parameters(child.children[offset + 1], args)
+                annotate_parameters(
+                    child.children[offset + 1], args, is_method=is_method
+                )
                 annotate_return(child.children, returns, offset + 2)
             except ValueError as ve:
                 raise ValueError(
@@ -262,6 +305,47 @@ def _nai_alias(alias, node):
     # import x as y
     # from field import x as y
     return node in (dotted_as_name, import_as_name)
+
+
+@singledispatch
+def decorator_names(obj):
+    return []
+
+
+@decorator_names.register(Node)
+def _mdn_node(node):
+    if node.type == syms.decorator:
+        return [node.children[1].value]
+
+    if node.type == syms.decorators:
+        return [decorator.children[1].value for decorator in node.children]
+
+
+@decorator_names.register(list)
+def _mdn_list(l):
+    result = []
+    for elem in l:
+        result.extend(decorator_names(elem))
+    return result
+
+
+@decorator_names.register(ast3.Name)
+def _mdn_name(name):
+    return [name.id]
+
+
+@decorator_names.register(ast3.Call)
+def _mdn_call(call):
+    return decorator_names(call.func)
+
+
+@decorator_names.register(ast3.Attribute)
+def _mdn_attribute(attr):
+    return [astunparse.unparse(attr).strip()]
+
+
+def is_builtin_method_decorator(name):
+    return name in {'classmethod', 'staticmethod'}
 
 
 def issublist(sublist, superlist):
@@ -334,7 +418,7 @@ _star = Leaf(token.STAR, '*')
 _dstar = Leaf(token.DOUBLESTAR, '**')
 
 
-def annotate_parameters(parameters, ast_args):
+def annotate_parameters(parameters, ast_args, *, is_method=False):
     params = parameters.children[1:-1]
     if len(params) == 0:
         return  # FIXME: handle checking if the expected (AST) function is also empty.
@@ -349,7 +433,9 @@ def annotate_parameters(parameters, ast_args):
 
     num_args_no_defaults = len(ast_args.args) - len(ast_args.defaults)
     defaults = [None] * num_args_no_defaults + ast_args.defaults
-    typedargslist.extend(gen_annotated_params(ast_args.args, defaults, params))
+    typedargslist.extend(
+        gen_annotated_params(ast_args.args, defaults, params, is_method=is_method)
+    )
     if ast_args.vararg or ast_args.kwonlyargs:
         try:
             hopefully_star, hopefully_vararg = pop_param(params)
@@ -369,9 +455,7 @@ def annotate_parameters(parameters, ast_args):
         else:
             hopefully_vararg_name = hopefully_vararg.value
         if hopefully_vararg_name != ast_args.vararg.arg:
-            raise ValueError(
-                f".pyi file expects *{ast_args.vararg.arg} in source"
-            )
+            raise ValueError(f".pyi file expects *{ast_args.vararg.arg} in source")
 
         typedargslist.append(
             get_annotated_param(hopefully_vararg, ast_args.vararg, missing_ok=True)
@@ -503,7 +587,10 @@ def pop_param(params):
 _none = Leaf(token.NAME, 'None')
 
 
-def gen_annotated_params(args, defaults, params, implicit_default=False):
+def gen_annotated_params(
+    args, defaults, params, *, implicit_default=False, is_method=False
+):
+    missing_ok = is_method
     for arg, expected_default in zip(args, defaults):
         yield new(_comma)
 
@@ -531,13 +618,15 @@ def gen_annotated_params(args, defaults, params, implicit_default=False):
                 f"but the .pyi file does"
             )
 
-        yield get_annotated_param(param, arg)
+        yield get_annotated_param(param, arg, missing_ok=missing_ok)
         if actual_default:
             yield new(_eq)
             yield new(actual_default, prefix=' ')
 
+        missing_ok = False
 
-def get_annotated_param(node, arg, missing_ok=False):
+
+def get_annotated_param(node, arg, *, missing_ok=False):
     if node.type not in (token.NAME, syms.tname):
         raise NotImplementedError(f"unexpected node token: `{node}`")
 

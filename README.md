@@ -12,12 +12,16 @@ Things to be done:
 * [x] reapply typing imports
 * [x] reapply function argument annotations
 * [x] reapply function return value annotations
-* [ ] reapply method argument and return value annotations
-* [ ] reapply module-level field annotations (and aliases)
+* [x] reapply method argument and return value annotations
+* [ ] reapply function-level variable annotations
+* [ ] reapply module-level field annotations
+* [ ] reapply module-level type aliases
 * [ ] reapply class-level field annotations
 * [ ] reapply instance-level field annotations
 * [ ] add a --python2 option and remove print_statement by default
 * [ ] add the --keep-byte-literals option for Mercurial
+* [ ] support type comments in .pyi files
+* [ ] add a --backward option to output type comments instead of annotations
 * [ ] handle if sys.version_info and sys.platform checks in stubs
 * [ ] warn about functions and classes with missing annotations
 

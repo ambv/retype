@@ -263,14 +263,140 @@ class FunctionArgumentTestCase(RetypeTestCase):
     def test_complex_sig1(self):
         pyi_txt = "def fun(a1: str, *args: str, kwonly1: int, **kwargs) -> None: ...\n"
         src_txt = "def fun(a1, *args, kwonly1=None, **kwargs) -> None: ...\n"
-        expected_txt = "def fun(a1: str, *args: str, kwonly1: int = None, **kwargs) -> None: ...\n"
+        expected_txt = "def fun(a1: str, *args: str, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
 
     def test_complex_sig2(self):
         pyi_txt = "def fun(a1: str, *, kwonly1: int, **kwargs) -> None: ...\n"
         src_txt = "def fun(a1, *, kwonly1=None, **kwargs) -> None: ...\n"
-        expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs) -> None: ...\n"
+        expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+
+class MethodTestCase(RetypeTestCase):
+    def test_basic(self):
+        pyi_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None: ...
+        """
+        src_txt = """
+            class C:
+                def __init__(self, a1, *args, kwonly1) -> None:
+                    super().__init__()
+        """
+        expected_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
+                    super().__init__()
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_two_classes(self):
+        pyi_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None: ...
+            class D:
+                def __init__(self, a1: C, **kwargs) -> None: ...
+        """
+        src_txt = """
+            class C:
+                def __init__(self, a1, *args, kwonly1) -> None:
+                    super().__init__()
+
+            class D:
+                def __init__(self, a1, **kwargs) -> None:
+                    super().__init__()
+        """
+        expected_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
+                    super().__init__()
+
+            class D:
+                def __init__(self, a1: C, **kwargs) -> None:
+                    super().__init__()
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_function(self):
+        pyi_txt = """
+            class C:
+                def method(self, a1: str, *args: str, kwonly1: int) -> None: ...
+        """
+        src_txt = """
+            def method(self, a1, *args, kwonly1):
+                print("I am not a method")
+
+            class C:
+                def method(self, a1, *args, kwonly1) -> None:
+                    print("I am a method!")
+        """
+        expected_txt = """
+            def method(self, a1, *args, kwonly1):
+                print("I am not a method")
+
+            class C:
+                def method(self, a1: str, *args: str, kwonly1: int) -> None:
+                    print("I am a method!")
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_missing_class(self):
+        pyi_txt = """
+            class C:
+                def method(self, a1: str, *args: str, kwonly1: int) -> None: ...
+        """
+        src_txt = """
+            def method(self, a1, *args, kwonly1):
+                print("I am not a method")
+        """
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Class 'C' not found in source.",
+            str(exception),
+        )
+
+    def test_staticmethod(self):
+        pyi_txt = """
+            class C:
+                @yeah.what.aboutThis()
+                @staticmethod
+                def method(a1, *args: str, kwonly1: int) -> None: ...
+        """
+        src_txt = """
+            class C:
+                @whatAboutThis()
+                @yeah
+                @staticmethod
+                def method(a1, *args, kwonly1) -> None:
+                    print("I am a staticmethod, don't use me!")
+        """
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'method': 6:1: .pyi file is " +
+            "missing annotation for 'a1' and source doesn't provide it either",
+            str(exception),
+        )
+
+    def test_decorator_mismatch(self):
+        pyi_txt = """
+            class C:
+                @yeah.what.aboutThis()
+                @staticmethod
+                def method(a1, *args: str, kwonly1: int) -> None: ...
+        """
+        src_txt = """
+            class C:
+                @classmethod
+                def method(cls, a1, *args, kwonly1) -> None:
+                    print("I am a staticmethod, don't use me!")
+        """
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Incompatible method kind for 'method': 4:1: Expected: " +
+            "staticmethod, actual: classmethod",
+            str(exception),
+        )
 
 
 if __name__ == '__main__':
