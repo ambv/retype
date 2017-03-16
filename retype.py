@@ -249,6 +249,7 @@ def _r_functiondef(fun, node):
                     child.children[offset + 1], args, is_method=is_method
                 )
                 annotate_return(child.children, returns, offset + 2)
+                annotate_variable(fun.body, child.children[-1])
             except ValueError as ve:
                 raise ValueError(
                     f"Annotation problem in function {name.value!r}: " +
@@ -502,9 +503,7 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
         extra_params = minimize_whitespace(
             str(Node(syms.typedargslist, [new(p) for p in params]))
         )
-        raise ValueError(
-            f"extra arguments in source: {extra_params}"
-        )
+        raise ValueError(f"extra arguments in source: {extra_params}")
 
     if typedargslist:
         typedargslist = typedargslist[1:]  # drop the initial comma
@@ -560,6 +559,120 @@ def annotate_return(function, ast_returns, offset):
         function.insert(offset + 1, ret_stmt)
     else:
         raise NotImplementedError(f"unexpected return token: {str(function[offset])!r}")
+
+
+@singledispatch
+def annotate_variable(var, body):
+    """Annotate `var` in lib2to3 suite note (`body`)."""
+
+
+@annotate_variable.register(list)
+def _av_list(l, body):
+    for elem in l:
+        annotate_variable(elem, body)
+
+
+_newline = Leaf(token.NEWLINE, '\n')
+
+
+@annotate_variable.register(ast3.AnnAssign)
+def _av_annassign(annassign, body):
+    target = annassign.target
+    if isinstance(target, ast3.Name):
+        name = target.id
+    else:
+        raise NotImplementedError(f"unexpected assignment target")
+
+    annotation = minimize_whitespace(astunparse.unparse(annassign.annotation))
+    annassign_node = Node(
+        syms.annassign,
+        [
+            new(_colon),
+            Leaf(token.NAME, annotation, prefix=" "),
+        ],
+    )
+    for child in body.children:
+        if child.type != syms.simple_stmt:
+            continue
+
+        maybe_expr = child.children[0]
+        if maybe_expr.type != syms.expr_stmt:
+            continue
+
+        expr = maybe_expr.children
+        maybe_annotation = None
+
+        if expr[0].type == token.NAME and expr[0].value == name:
+            if expr[1].type == syms.annassign:
+                # variable already typed
+                maybe_annotation = expr[1].children[1]
+                if len(expr[1].children) > 2 and expr[1].children[2] != _eq:
+                    raise NotImplementedError(
+                        f"unexpected element after annotation: {str(expr[3])}"
+                    )
+            elif expr[1] != _eq:
+                # If it's not an assignment, we're ignoring it. It could be:
+                # - indexing
+                # - tuple unpacking
+                # - calls
+                # - etc. etc.
+                continue
+
+            if maybe_annotation is not None:
+                actual_annotation = minimize_whitespace(str(maybe_annotation))
+                if annotation != actual_annotation:
+                    raise ValueError(
+                        f"incompatible existing variable annotation. Expected: " +
+                        f"{annotation!r}, actual: {actual_annotation!r}"
+                    )
+            else:
+                annassign_node.children.append(new(_eq))
+                annassign_node.children.extend(new(elem) for elem in expr[2:])
+                maybe_expr.children = [expr[0], annassign_node]
+
+            break
+    else:
+        # If the variable was used in some `if` statement, etc.; let's define
+        # its type from the stub on the top level of the function.
+        offset = 0
+        prefix = ''
+        for i, child in enumerate(body.children):
+            offset = i
+            prefix = child.prefix
+            if child.type == syms.simple_stmt:
+                if child.children[0].type == syms.expr_stmt:
+                    expr = child.children[0].children
+                    if (
+                        len(expr) != 2 or
+                        expr[0].type != token.NAME or
+                        expr[1].type != syms.annassign or
+                        _eq in expr[1].children
+                    ):
+                        break
+
+                elif child.children[0].type != token.STRING:
+                    break
+
+            elif child.type not in {token.NEWLINE, token.INDENT}:
+                break
+
+        body.children.insert(
+            offset,
+            Node(
+                syms.simple_stmt,
+                [
+                    Node(
+                        syms.expr_stmt,
+                        [
+                            Leaf(token.NAME, name),
+                            annassign_node,
+                        ],
+                    ),
+                    new(_newline),
+                ],
+                prefix=prefix.lstrip('\n'),
+            ),
+        )
 
 
 def minimize_whitespace(text):

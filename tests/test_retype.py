@@ -313,6 +313,131 @@ class FunctionArgumentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
 
 
+class FunctionVariableTestCase(RetypeTestCase):
+    def test_basic(self):
+        pyi_txt = """
+        def fun() -> None:
+            name: str
+        """
+        src_txt = """
+        def fun():
+            "Docstring"
+
+            name = "Dinsdale"
+            print(name)
+            name = "Diinsdaalee"
+        """
+        expected_txt = """
+        def fun() -> None:
+            "Docstring"
+
+            name: str = "Dinsdale"
+            print(name)
+            name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_no_value(self):
+        pyi_txt = """
+        def fun() -> None:
+            name: str
+        """
+        src_txt = """
+        def fun():
+            "Docstring"
+
+            name: str
+            print(name)
+            name = "Diinsdaalee"
+        """
+        expected_txt = """
+        def fun() -> None:
+            "Docstring"
+
+            name: str
+            print(name)
+            name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_default_type(self):
+        pyi_txt = """
+        def fun() -> None:
+            name: str
+        """
+        src_txt = """
+        def fun():
+            "Docstring"
+
+            if False:
+                name = "Dinsdale"
+                print(name)
+                name = "Diinsdaalee"
+        """
+        expected_txt = """
+        def fun() -> None:
+            "Docstring"
+
+            name: str
+            if False:
+                name = "Dinsdale"
+                print(name)
+                name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_type_mismatch(self):
+        pyi_txt = """
+        def fun() -> None:
+            name: str
+        """
+        src_txt = """
+        def fun():
+            "Docstring"
+
+            name: int = 0
+            print(name)
+            name = "Diinsdaalee"
+        """
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 2:1: " +
+            "incompatible existing variable annotation. Expected: 'str', actual: 'int'",
+            str(exception),
+        )
+
+    def test_complex(self):
+        pyi_txt = """
+        def fun() -> None:
+            name: str
+            age: int
+            likes_spam: bool
+        """
+        src_txt = """
+        def fun():
+            "Docstring"
+
+            name = "Dinsdale"
+            print(name)
+            if False:
+                age = 100
+                name = "Diinsdaalee"
+        """
+        expected_txt = """
+        def fun() -> None:
+            "Docstring"
+            age: int
+            likes_spam: bool
+
+            name: str = "Dinsdale"
+            print(name)
+            if False:
+                age = 100
+                name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+
 class MethodTestCase(RetypeTestCase):
     def test_basic(self):
         pyi_txt = """

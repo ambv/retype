@@ -13,7 +13,7 @@ Things to be done:
 * [x] reapply function argument annotations
 * [x] reapply function return value annotations
 * [x] reapply method argument and return value annotations
-* [ ] reapply function-level variable annotations
+* [x] reapply function-level variable annotations
 * [ ] reapply module-level field annotations
 * [ ] reapply module-level type aliases
 * [ ] reapply class-level field annotations
