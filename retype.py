@@ -422,16 +422,18 @@ def decorator_names(obj):
 
 
 @decorator_names.register(Node)
-def _mdn_node(node):
+def _dn_node(node):
     if node.type == syms.decorator:
         return [node.children[1].value]
 
     if node.type == syms.decorators:
         return [decorator.children[1].value for decorator in node.children]
 
+    return []
+
 
 @decorator_names.register(list)
-def _mdn_list(l):
+def _dn_list(l):
     result = []
     for elem in l:
         result.extend(decorator_names(elem))
@@ -439,27 +441,22 @@ def _mdn_list(l):
 
 
 @decorator_names.register(ast3.Name)
-def _mdn_name(name):
+def _dn_name(name):
     return [name.id]
 
 
 @decorator_names.register(ast3.Call)
-def _mdn_call(call):
+def _dn_call(call):
     return decorator_names(call.func)
 
 
 @decorator_names.register(ast3.Attribute)
-def _mdn_attribute(attr):
+def _dn_attribute(attr):
     return [astunparse.unparse(attr).strip()]
 
 
 def is_builtin_method_decorator(name):
     return name in {'classmethod', 'staticmethod'}
-
-
-def issublist(sublist, superlist):
-    n = len(sublist)
-    return any((sublist == superlist[i:i + n]) for i in range(len(superlist) - n + 1))
 
 
 def make_import(*names, from_module=None):
