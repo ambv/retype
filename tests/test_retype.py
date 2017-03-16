@@ -402,7 +402,8 @@ class FunctionVariableTestCase(RetypeTestCase):
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
             "Annotation problem in function 'fun': 2:1: " +
-            "incompatible existing variable annotation. Expected: 'str', actual: 'int'",
+            "incompatible existing variable annotation for 'name'. " +
+            "Expected: 'str', actual: 'int'",
             str(exception),
         )
 
@@ -562,6 +563,243 @@ class MethodTestCase(RetypeTestCase):
             "staticmethod, actual: classmethod",
             str(exception),
         )
+
+
+class ModuleLevelVariableTestCase(RetypeTestCase):
+    def test_basic(self):
+        pyi_txt = """
+        name: str
+        """
+        src_txt = """
+        "Docstring"
+
+        name = "Dinsdale"
+        print(name)
+        name = "Diinsdaalee"
+        """
+        expected_txt = """
+        "Docstring"
+
+        name: str = "Dinsdale"
+        print(name)
+        name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_no_value(self):
+        pyi_txt = """
+        name: str
+        """
+        src_txt = """
+        "Docstring"
+
+        name: str
+        print(name)
+        name = "Diinsdaalee"
+        """
+        expected_txt = """
+        "Docstring"
+
+        name: str
+        print(name)
+        name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_default_type(self):
+        pyi_txt = """
+        name: str
+        """
+        src_txt = """
+        "Docstring"
+
+        if False:
+            name = "Dinsdale"
+            print(name)
+            name = "Diinsdaalee"
+        """
+        expected_txt = """
+        "Docstring"
+
+        name: str
+        if False:
+            name = "Dinsdale"
+            print(name)
+            name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_type_mismatch(self):
+        pyi_txt = """
+        name: str
+        """
+        src_txt = """
+        "Docstring"
+
+        name: int = 0
+        print(name)
+        name = "Diinsdaalee"
+        """
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "incompatible existing variable annotation for 'name'. " +
+            "Expected: 'str', actual: 'int'",
+            str(exception),
+        )
+
+    def test_complex(self):
+        pyi_txt = """
+        name: str
+        age: int
+        likes_spam: bool
+        """
+        src_txt = """
+        "Docstring"
+
+        name = "Dinsdale"
+        print(name)
+        if False:
+            age = 100
+            name = "Diinsdaalee"
+        """
+        expected_txt = """
+        "Docstring"
+        age: int
+        likes_spam: bool
+
+        name: str = "Dinsdale"
+        print(name)
+        if False:
+            age = 100
+            name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+
+
+class ClassVariableTestCase(RetypeTestCase):
+    def test_basic(self):
+        pyi_txt = """
+        class C:
+            name: str
+        """
+        src_txt = """
+        class C:
+            "Docstring"
+
+            name = "Dinsdale"
+            print(name)
+            name = "Diinsdaalee"
+        """
+        expected_txt = """
+        class C:
+            "Docstring"
+
+            name: str = "Dinsdale"
+            print(name)
+            name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_no_value(self):
+        pyi_txt = """
+        class C:
+            name: str
+        """
+        src_txt = """
+        class C:
+            "Docstring"
+
+            name: str
+            print(name)
+            name = "Diinsdaalee"
+        """
+        expected_txt = """
+        class C:
+            "Docstring"
+
+            name: str
+            print(name)
+            name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_default_type(self):
+        pyi_txt = """
+        class C:
+            name: str
+        """
+        src_txt = """
+        class C:
+            "Docstring"
+
+            if False:
+                name = "Dinsdale"
+                print(name)
+                name = "Diinsdaalee"
+        """
+        expected_txt = """
+        class C:
+            "Docstring"
+
+            name: str
+            if False:
+                name = "Dinsdale"
+                print(name)
+                name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+
+    def test_type_mismatch(self):
+        pyi_txt = """
+        class C:
+            name: str
+        """
+        src_txt = """
+        class C:
+            "Docstring"
+
+            name: int = 0
+            print(name)
+            name = "Diinsdaalee"
+        """
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "incompatible existing variable annotation for 'name'. " +
+            "Expected: 'str', actual: 'int'",
+            str(exception),
+        )
+
+    def test_complex(self):
+        pyi_txt = """
+        class C:
+            name: str
+            age: int
+            likes_spam: bool
+        """
+        src_txt = """
+        class C:
+            "Docstring"
+
+            name = "Dinsdale"
+            print(name)
+            if False:
+                age = 100
+                name = "Diinsdaalee"
+        """
+        expected_txt = """
+        class C:
+            "Docstring"
+            age: int
+            likes_spam: bool
+
+            name: str = "Dinsdale"
+            print(name)
+            if False:
+                age = 100
+                name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
 
 
 if __name__ == '__main__':

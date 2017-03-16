@@ -101,8 +101,7 @@ def retype_file(pyi, srcs, targets):
         src_txt = src_file.read()
     pyi_ast = ast3.parse(pyi_txt)
     src_node = lib2to3_parse(src_txt)
-    for node in pyi_ast.body:
-        reapply(node, src_node)
+    reapply(pyi_ast.body, src_node)
     targets.mkdir(parents=True, exist_ok=True)
     with open(targets / py, 'w') as target_file:
         target_file.write(lib2to3_unparse(src_node))
@@ -142,9 +141,18 @@ def reapply(ast_node, lib2to3_node):
     """
 
 
+@reapply.register(list)
+def _r_list(l, lib2to3_node):
+    if lib2to3_node.type not in (syms.file_input, syms.suite):
+        return
+
+    for pyi_node in l:
+        reapply(pyi_node, lib2to3_node)
+
+
 @reapply.register(ast3.ImportFrom)
 def _r_importfrom(import_from, node):
-    assert node.type == syms.file_input
+    assert node.type in (syms.file_input, syms.suite)
     level = import_from.level
     module = '.' * level + import_from.module
     names = import_from.names
@@ -165,7 +173,7 @@ def _r_importfrom(import_from, node):
 
 @reapply.register(ast3.Import)
 def _r_import(import_, node):
-    assert node.type == syms.file_input
+    assert node.type in (syms.file_input, syms.suite)
     names = import_.names
     for child in node.children:
         if child.type != syms.simple_stmt:
@@ -184,7 +192,7 @@ def _r_import(import_, node):
 
 @reapply.register(ast3.ClassDef)
 def _r_classdef(cls, node):
-    assert node.type == syms.file_input  # FIXME: support inner classes
+    assert node.type in (syms.file_input, syms.suite)
     name = Leaf(token.NAME, cls.name)
     for child in node.children:
         if child.type == syms.decorated:
@@ -249,7 +257,7 @@ def _r_functiondef(fun, node):
                     child.children[offset + 1], args, is_method=is_method
                 )
                 annotate_return(child.children, returns, offset + 2)
-                annotate_variable(fun.body, child.children[-1])
+                reapply(fun.body, child.children[-1])
             except ValueError as ve:
                 raise ValueError(
                     f"Annotation problem in function {name.value!r}: " +
@@ -258,6 +266,109 @@ def _r_functiondef(fun, node):
             break
     else:
         raise ValueError(f"Function {name.value!r} not found in source.")
+
+
+@reapply.register(ast3.AnnAssign)
+def _r_annassign(annassign, body):
+    assert body.type in (syms.file_input, syms.suite)
+
+    target = annassign.target
+    if isinstance(target, ast3.Name):
+        name = target.id
+    else:
+        raise NotImplementedError(f"unexpected assignment target")
+
+    annotation = minimize_whitespace(astunparse.unparse(annassign.annotation))
+    annassign_node = Node(
+        syms.annassign,
+        [
+            new(_colon),
+            Leaf(token.NAME, annotation, prefix=" "),
+        ],
+    )
+    for child in body.children:
+        if child.type != syms.simple_stmt:
+            continue
+
+        maybe_expr = child.children[0]
+        if maybe_expr.type != syms.expr_stmt:
+            continue
+
+        expr = maybe_expr.children
+        maybe_annotation = None
+
+        if expr[0].type == token.NAME and expr[0].value == name:
+            if expr[1].type == syms.annassign:
+                # variable already typed
+                maybe_annotation = expr[1].children[1]
+                if len(expr[1].children) > 2 and expr[1].children[2] != _eq:
+                    raise NotImplementedError(
+                        f"unexpected element after annotation: {str(expr[3])}"
+                    )
+            elif expr[1] != _eq:
+                # If it's not an assignment, we're ignoring it. It could be:
+                # - indexing
+                # - tuple unpacking
+                # - calls
+                # - etc. etc.
+                continue
+
+            if maybe_annotation is not None:
+                actual_annotation = minimize_whitespace(str(maybe_annotation))
+                if annotation != actual_annotation:
+                    raise ValueError(
+                        f"incompatible existing variable annotation for " +
+                        f"{name!r}. Expected: " +
+                        f"{annotation!r}, actual: {actual_annotation!r}"
+                    )
+            else:
+                annassign_node.children.append(new(_eq))
+                annassign_node.children.extend(new(elem) for elem in expr[2:])
+                maybe_expr.children = [expr[0], annassign_node]
+
+            break
+    else:
+        # If the variable was used in some `if` statement, etc.; let's define
+        # its type from the stub on the top level of the function.
+        offset = 0
+        prefix = ''
+        for i, child in enumerate(body.children):
+            offset = i
+            prefix = child.prefix
+            if child.type == syms.simple_stmt:
+                if child.children[0].type == syms.expr_stmt:
+                    expr = child.children[0].children
+                    if (
+                        len(expr) != 2 or
+                        expr[0].type != token.NAME or
+                        expr[1].type != syms.annassign or
+                        _eq in expr[1].children
+                    ):
+                        break
+
+                elif child.children[0].type != token.STRING:
+                    break
+
+            elif child.type not in {token.NEWLINE, token.INDENT}:
+                break
+
+        body.children.insert(
+            offset,
+            Node(
+                syms.simple_stmt,
+                [
+                    Node(
+                        syms.expr_stmt,
+                        [
+                            Leaf(token.NAME, name),
+                            annassign_node,
+                        ],
+                    ),
+                    new(_newline),
+                ],
+                prefix=prefix.lstrip('\n'),
+            ),
+        )
 
 
 @singledispatch
@@ -269,9 +380,6 @@ def names_already_imported(names, node):
 @names_already_imported.register(list)
 def _nai_list(names, node):
     return all(names_already_imported(name, node) for name in names)
-
-
-_as = Leaf(token.NAME, 'as', prefix=" ")
 
 
 @names_already_imported.register(ast3.alias)
@@ -413,12 +521,6 @@ def append_after_imports(stmt_to_insert, node):
     node.children.insert(insert_after + 1, stmt_to_insert)
 
 
-_comma = Leaf(token.COMMA, ',')
-_eq = Leaf(token.EQUAL, '=', prefix=" ")
-_star = Leaf(token.STAR, '*')
-_dstar = Leaf(token.DOUBLESTAR, '**')
-
-
 def annotate_parameters(parameters, ast_args, *, is_method=False):
     params = parameters.children[1:-1]
     if len(params) == 0:
@@ -525,10 +627,6 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
         ]
 
 
-_colon = Leaf(token.COLON, ':')
-_rarrow = Leaf(token.RARROW, '->', prefix=' ')
-
-
 def annotate_return(function, ast_returns, offset):
     if ast_returns is None:
         if function[offset] == _colon:
@@ -561,120 +659,6 @@ def annotate_return(function, ast_returns, offset):
         raise NotImplementedError(f"unexpected return token: {str(function[offset])!r}")
 
 
-@singledispatch
-def annotate_variable(var, body):
-    """Annotate `var` in lib2to3 suite note (`body`)."""
-
-
-@annotate_variable.register(list)
-def _av_list(l, body):
-    for elem in l:
-        annotate_variable(elem, body)
-
-
-_newline = Leaf(token.NEWLINE, '\n')
-
-
-@annotate_variable.register(ast3.AnnAssign)
-def _av_annassign(annassign, body):
-    target = annassign.target
-    if isinstance(target, ast3.Name):
-        name = target.id
-    else:
-        raise NotImplementedError(f"unexpected assignment target")
-
-    annotation = minimize_whitespace(astunparse.unparse(annassign.annotation))
-    annassign_node = Node(
-        syms.annassign,
-        [
-            new(_colon),
-            Leaf(token.NAME, annotation, prefix=" "),
-        ],
-    )
-    for child in body.children:
-        if child.type != syms.simple_stmt:
-            continue
-
-        maybe_expr = child.children[0]
-        if maybe_expr.type != syms.expr_stmt:
-            continue
-
-        expr = maybe_expr.children
-        maybe_annotation = None
-
-        if expr[0].type == token.NAME and expr[0].value == name:
-            if expr[1].type == syms.annassign:
-                # variable already typed
-                maybe_annotation = expr[1].children[1]
-                if len(expr[1].children) > 2 and expr[1].children[2] != _eq:
-                    raise NotImplementedError(
-                        f"unexpected element after annotation: {str(expr[3])}"
-                    )
-            elif expr[1] != _eq:
-                # If it's not an assignment, we're ignoring it. It could be:
-                # - indexing
-                # - tuple unpacking
-                # - calls
-                # - etc. etc.
-                continue
-
-            if maybe_annotation is not None:
-                actual_annotation = minimize_whitespace(str(maybe_annotation))
-                if annotation != actual_annotation:
-                    raise ValueError(
-                        f"incompatible existing variable annotation. Expected: " +
-                        f"{annotation!r}, actual: {actual_annotation!r}"
-                    )
-            else:
-                annassign_node.children.append(new(_eq))
-                annassign_node.children.extend(new(elem) for elem in expr[2:])
-                maybe_expr.children = [expr[0], annassign_node]
-
-            break
-    else:
-        # If the variable was used in some `if` statement, etc.; let's define
-        # its type from the stub on the top level of the function.
-        offset = 0
-        prefix = ''
-        for i, child in enumerate(body.children):
-            offset = i
-            prefix = child.prefix
-            if child.type == syms.simple_stmt:
-                if child.children[0].type == syms.expr_stmt:
-                    expr = child.children[0].children
-                    if (
-                        len(expr) != 2 or
-                        expr[0].type != token.NAME or
-                        expr[1].type != syms.annassign or
-                        _eq in expr[1].children
-                    ):
-                        break
-
-                elif child.children[0].type != token.STRING:
-                    break
-
-            elif child.type not in {token.NEWLINE, token.INDENT}:
-                break
-
-        body.children.insert(
-            offset,
-            Node(
-                syms.simple_stmt,
-                [
-                    Node(
-                        syms.expr_stmt,
-                        [
-                            Leaf(token.NAME, name),
-                            annassign_node,
-                        ],
-                    ),
-                    new(_newline),
-                ],
-                prefix=prefix.lstrip('\n'),
-            ),
-        )
-
-
 def minimize_whitespace(text):
     return re.sub(r'[\n\t ]+', ' ', text, re.MULTILINE).strip()
 
@@ -703,9 +687,6 @@ def pop_param(params):
     except IndexError:
         pass
     return name, default
-
-
-_none = Leaf(token.NAME, 'None')
 
 
 def gen_annotated_params(
@@ -800,6 +781,16 @@ def new(n, prefix=None):
         n.prefix = prefix
     return n
 
+
+_as = Leaf(token.NAME, 'as', prefix=' ')
+_colon = Leaf(token.COLON, ':')
+_comma = Leaf(token.COMMA, ',')
+_dstar = Leaf(token.DOUBLESTAR, '**')
+_eq = Leaf(token.EQUAL, '=', prefix=' ')
+_newline = Leaf(token.NEWLINE, '\n')
+_none = Leaf(token.NAME, 'None')
+_rarrow = Leaf(token.RARROW, '->', prefix=' ')
+_star = Leaf(token.STAR, '*')
 
 if __name__ == '__main__':
     main()

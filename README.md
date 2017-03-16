@@ -14,9 +14,9 @@ Things to be done:
 * [x] reapply function return value annotations
 * [x] reapply method argument and return value annotations
 * [x] reapply function-level variable annotations
-* [ ] reapply module-level field annotations
+* [x] reapply module-level field annotations
 * [ ] reapply module-level type aliases
-* [ ] reapply class-level field annotations
+* [x] reapply class-level field annotations
 * [ ] reapply instance-level field annotations
 * [ ] add a --python2 option and remove print_statement by default
 * [ ] add the --keep-byte-literals option for Mercurial
