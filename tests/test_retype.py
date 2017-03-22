@@ -5,7 +5,7 @@ from unittest import main, TestCase
 
 from typed_ast import ast3
 
-from retype import reapply, lib2to3_parse, serialize_attribute
+from retype import reapply_all, lib2to3_parse, serialize_attribute
 
 
 class RetypeTestCase(TestCase):
@@ -15,8 +15,7 @@ class RetypeTestCase(TestCase):
         pyi = ast3.parse(dedent(pyi_txt))
         src = lib2to3_parse(dedent(src_txt))
         expected = lib2to3_parse(dedent(expected_txt))
-        for node in pyi.body:
-            reapply(node, src)
+        reapply_all(pyi.body, src)
         self.longMessage = False
         self.assertEqual(expected, src, f"\n{expected!r} != \n{src!r}")
 
@@ -24,8 +23,7 @@ class RetypeTestCase(TestCase):
         pyi = ast3.parse(dedent(pyi_txt))
         src = lib2to3_parse(dedent(src_txt))
         expected = lib2to3_parse(dedent(expected_txt))
-        for node in pyi.body:
-            reapply(node, src)
+        reapply_all(pyi.body, src)
         self.longMessage = False
         self.assertEqual(
             str(expected),
@@ -37,8 +35,7 @@ class RetypeTestCase(TestCase):
         with self.assertRaises(expected_exception) as ctx:
             pyi = ast3.parse(dedent(pyi_txt))
             src = lib2to3_parse(dedent(src_txt))
-            for node in pyi.body:
-                reapply(node, src)
+            reapply_all(pyi.body, src)
         return ctx.exception
 
 
@@ -935,6 +932,183 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
             age = 100
             name = "Diinsdaalee"
         """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_alias_basic(self):
+        pyi_txt = """
+        from typing import List, Optional
+
+        MaybeStrings = Optional[List[Optional[str]]]
+        SOME_GLOBAL: int
+
+        def fun(errors: MaybeStrings) -> None: ...
+        """
+        src_txt = """
+        "Docstring"
+
+        from __future__ import print_function
+
+        import sys
+
+        SOME_GLOBAL: int = 0
+
+        def fun(errors):
+            for error in errors:
+                if not error:
+                    continue
+                print(error, file=sys.stderr)
+        """
+        expected_txt = """
+        "Docstring"
+
+        from __future__ import print_function
+
+        import sys
+
+        from typing import List, Optional
+        SOME_GLOBAL: int = 0
+        MaybeStrings = Optional[List[Optional[str]]]
+
+        def fun(errors: MaybeStrings) -> None:
+            for error in errors:
+                if not error:
+                    continue
+                print(error, file=sys.stderr)
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_alias_typevar(self):
+        pyi_txt = """
+        from typing import TypeVar
+
+        _T = TypeVar('_T', bound=str)
+        SOME_GLOBAL: int
+
+        def fun(error: _T) -> _T: ...
+        """
+        src_txt = """
+        "Docstring"
+
+        from __future__ import print_function
+
+        import sys
+
+        SOME_GLOBAL: int = 0
+
+        def fun(error):
+            return error
+        """
+        expected_txt = """
+        "Docstring"
+
+        from __future__ import print_function
+
+        import sys
+
+        from typing import TypeVar
+        SOME_GLOBAL: int = 0
+        _T = TypeVar('_T', bound=str)
+
+        def fun(error: _T) -> _T:
+            return error
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_alias_typevar_typing(self):
+        pyi_txt = """
+        import typing.foo.bar
+
+        _T = typing.foo.bar.TypeVar('_T', bound=str)
+        SOME_GLOBAL: int
+
+        def fun(error: _T) -> _T: ...
+        """
+        src_txt = """
+        "Docstring"
+
+        from __future__ import print_function
+
+        import sys
+
+        SOME_GLOBAL: int = 0
+
+        def fun(error):
+            return error
+        """
+        expected_txt = """
+        "Docstring"
+
+        from __future__ import print_function
+
+        import sys
+
+        import typing.foo.bar
+        SOME_GLOBAL: int = 0
+        _T = typing.foo.bar.TypeVar('_T', bound=str)
+
+        def fun(error: _T) -> _T:
+            return error
+        """
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_alias_many(self):
+        pyi_txt = """
+        from typing import TypeVar
+
+        _T = TypeVar('_T', bound=str)
+        _EitherStr = Union[str, bytes]
+        _MaybeStrings = List[Optional[_EitherStr]]
+        SOME_GLOBAL: int
+
+        def fun(error: _T) -> _T: ...
+        def fun2(errors: _MaybeStrings) -> None: ...
+        """
+        src_txt = """
+        "Docstring"
+
+        from __future__ import print_function
+
+        import sys
+
+        SOME_GLOBAL: int = 0
+
+        def fun(error):
+            return error
+
+        @decorator
+        def fun2(errors) -> None:
+            for error in errors:
+                if not error:
+                    continue
+                print(error, file=sys.stderr)
+        """
+        expected_txt = """
+        "Docstring"
+
+        from __future__ import print_function
+
+        import sys
+
+        from typing import TypeVar
+        SOME_GLOBAL: int = 0
+        _T = TypeVar('_T', bound=str)
+
+        def fun(error: _T) -> _T:
+            return error
+
+        _EitherStr = Union[str, bytes]
+        _MaybeStrings = List[Optional[_EitherStr]]
+        @decorator
+        def fun2(errors: _MaybeStrings) -> None:
+            for error in errors:
+                if not error:
+                    continue
+                print(error, file=sys.stderr)
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
 

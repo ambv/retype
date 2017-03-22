@@ -100,7 +100,7 @@ def retype_file(pyi, srcs, targets):
         src_txt = src_file.read()
     pyi_ast = ast3.parse(pyi_txt)
     src_node = lib2to3_parse(src_txt)
-    reapply(pyi_ast.body, src_node)
+    reapply_all(pyi_ast.body, src_node)
     targets.mkdir(parents=True, exist_ok=True)
     with open(targets / py, 'w') as target_file:
         target_file.write(lib2to3_unparse(src_node))
@@ -132,21 +132,35 @@ def lib2to3_unparse(node):
     return str(node)
 
 
+def reapply_all(ast_node, lib2to3_node):
+    """Reapplies the typed_ast node into the lib2to3 tree.
+
+    Also does post-processing. This is done in reverse order to enable placing
+    TypeVars and aliases that depend on one another.
+    """
+    late_processing = reapply(ast_node, lib2to3_node)
+    for lazy_func in reversed(late_processing):
+        lazy_func()
+
+
 @singledispatch
 def reapply(ast_node, lib2to3_node):
     """Reapplies the typed_ast node into the lib2to3 tree.
 
     By default does nothing.
     """
+    return []
 
 
 @reapply.register(list)
 def _r_list(l, lib2to3_node):
     if lib2to3_node.type not in (syms.file_input, syms.suite):
-        return
+        return []
 
+    result = []
     for pyi_node in l:
-        reapply(pyi_node, lib2to3_node)
+        result.extend(reapply(pyi_node, lib2to3_node))
+    return result
 
 
 @reapply.register(ast3.ImportFrom)
@@ -168,6 +182,7 @@ def _r_importfrom(import_from, node):
     else:
         imp = make_import(*names, from_module=module)
         append_after_imports(imp, node)
+    return []
 
 
 @reapply.register(ast3.Import)
@@ -187,6 +202,7 @@ def _r_import(import_, node):
     else:
         imp = make_import(*names)
         append_after_imports(imp, node)
+    return []
 
 
 @reapply.register(ast3.ClassDef)
@@ -203,8 +219,10 @@ def _r_classdef(cls, node):
     else:
         raise ValueError(f"Class {name.value!r} not found in source.")
 
+    result = []
     for ast_elem in cls.body:
-        reapply(ast_elem, cls_node)
+        result.extend(reapply(ast_elem, cls_node))
+    return result
 
 
 @reapply.register(ast3.FunctionDef)
@@ -265,6 +283,8 @@ def _r_functiondef(fun, node):
             break
     else:
         raise ValueError(f"Function {name.value!r} not found in source.")
+
+    return []
 
 
 @reapply.register(ast3.AnnAssign)
@@ -355,6 +375,82 @@ def _r_annassign(annassign, body):
             ),
         )
 
+    return []
+
+
+@reapply.register(ast3.Assign)
+def _r_assign(assign, body):
+    assert body.type in (syms.file_input, syms.suite)
+
+    if len(assign.targets) != 1 or not isinstance(assign.targets[0], ast3.Name):
+        # Type aliases cannot have multiple targets, and cannot be attributes.
+        # We're not interested in other assignments.
+        return []
+
+    name = assign.targets[0].id
+    value = convert_annotation(assign.value)
+    value.prefix = " "
+
+    for child in body.children:
+        if child.type != syms.simple_stmt:
+            continue
+
+        maybe_expr = child.children[0]
+        if maybe_expr.type != syms.expr_stmt:
+            continue
+
+        expr = maybe_expr.children
+
+        if (expr[0].type == token.NAME and expr[0].value == name and expr[1] == _eq):
+            actual_value = expr[2]
+            if value != actual_value:
+                value_str = minimize_whitespace(str(value))
+                actual_value_str = minimize_whitespace(str(actual_value))
+                raise ValueError(
+                    f"incompatible existing alias {name!r}. Expected: " +
+                    f"{value_str!r}, actual: {actual_value_str!r}"
+                )
+
+            break
+    else:
+        # We need to defer placing aliases because we need to place them
+        # relative to their usage, and the type annotations likely come after
+        # in the .pyi file.
+
+        def lazy_aliasing():
+            # We should find the first place where the alias is used and put it
+            # right above.  This way we don't need to look at the value at all.
+            _, prefix = get_offset_and_prefix(body, skip_assignments=True)
+            name_node = Leaf(token.NAME, name)
+            for _offset, stmt in enumerate(body.children):
+                if name_used_in_node(stmt, name_node):
+                    break
+            else:
+                _offset = -1
+
+            body.children.insert(
+                _offset,
+                Node(
+                    syms.simple_stmt,
+                    [
+                        Node(
+                            syms.expr_stmt,
+                            [
+                                Leaf(token.NAME, name),
+                                new(_eq),
+                                value,
+                            ],
+                        ),
+                        new(_newline),
+                    ],
+                    prefix=prefix.lstrip('\n'),
+                ),
+            )
+
+        return [lazy_aliasing]
+
+    return []
+
 
 @singledispatch
 def serialize_attribute(attr):
@@ -437,6 +533,47 @@ def _c_tuple(tup):
     return Node(
         syms.subscriptlist,
         contents,
+    )
+
+
+@convert_annotation.register(ast3.Attribute)
+def _c_attribute(attr):
+    # This is hacky. ¯\_(ツ)_/¯
+    return Leaf(token.NAME, f"{convert_annotation(attr.value)}.{attr.attr}")
+
+
+@convert_annotation.register(ast3.Call)
+def _c_call(call):
+    contents = [convert_annotation(arg) for arg in call.args]
+    contents.extend(convert_annotation(kwarg) for kwarg in call.keywords)
+    for index in range(len(contents) - 1, 0, -1):
+        contents[index].prefix = " "
+        contents.insert(index, new(_comma))
+
+    call_args = [
+        new(_lpar),
+        new(_rpar),
+    ]
+    if contents:
+        call_args.insert(1, Node(syms.arglist, contents))
+    return Node(
+        syms.power,
+        [convert_annotation(call.func), Node(
+            syms.trailer,
+            call_args,
+        )],
+    )
+
+
+@convert_annotation.register(ast3.keyword)
+def _c_keyword(kwarg):
+    return Node(
+        syms.argument,
+        [
+            Leaf(token.NAME, kwarg.arg),
+            new(_eq, prefix=''),
+            convert_annotation(kwarg.value),
+        ],
     )
 
 
@@ -882,6 +1019,35 @@ def get_offset_and_prefix(body, skip_assignments=False):
 
     prefix, child.prefix = child.prefix, prefix
     return _offset, prefix
+
+
+@singledispatch
+def name_used_in_node(node, name):
+    """Returns True if `name` appears in `node`. False otherwise."""
+
+
+@name_used_in_node.register(Node)
+def _nuin_node(node, name):
+    for n in node.pre_order():
+        if n == name:
+            return True
+
+    return False
+
+
+@name_used_in_node.register(Leaf)
+def _nuin_leaf(leaf, name):
+    return leaf == name
+
+
+def fix_line_numbers(body):
+    r"""Recomputes all line numbers based on the number of \n characters."""
+    maxline = 0
+    for node in body.pre_order():
+        maxline += node.prefix.count('\n')
+        if isinstance(node, Leaf):
+            node.lineno = maxline
+            maxline += str(node.value).count('\n')
 
 
 def new(n, prefix=None):

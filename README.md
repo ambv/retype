@@ -24,7 +24,7 @@ Things to be done:
 * [x] reapply method argument and return value annotations
 * [x] reapply function-level variable annotations
 * [x] reapply module-level field annotations
-* [ ] reapply module-level type aliases
+* [x] reapply module-level type aliases
 * [x] reapply class-level field annotations
 * [x] reapply instance-level field annotations
 * [ ] add a --python2 option and remove print_statement by default
