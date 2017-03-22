@@ -4,6 +4,15 @@
 
 Re-apply type annotations from .pyi stubs to your codebase.
 
+## Usage
+
+When you run `retype`, it will look for .pyi files in the `types/`
+directory, and for each such file, it will re-apply typing annotations
+to respective source files found in the current working directory.
+The resulting combined sources are put in `typed-src/`.
+
+All those directories are customizable, see `--help`.
+
 
 ## This is a work in progress.
 
