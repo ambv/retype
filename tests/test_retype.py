@@ -380,7 +380,6 @@ class FunctionVariableTestCase(RetypeTestCase):
         def fun() -> None:
             "Docstring"
             name: str
-
             if False:
                 name = "Dinsdale"
                 print(name)
@@ -432,7 +431,6 @@ class FunctionVariableTestCase(RetypeTestCase):
             "Docstring"
             age: int
             likes_spam: bool
-
             name: str = "Dinsdale"
             print(name)
             if False:
@@ -648,7 +646,6 @@ class MethodVariableTestCase(RetypeTestCase):
             def fun(self) -> None:
                 "Docstring"
                 name: str
-
                 if False:
                     name = "Dinsdale"
                     print(name)
@@ -705,7 +702,6 @@ class MethodVariableTestCase(RetypeTestCase):
                 "Docstring"
                 age: int
                 likes_spam: bool
-
                 name: str = "Dinsdale"
                 print(name)
                 if False:
@@ -774,7 +770,6 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         expected_txt = """
         "Docstring"
         name: str
-
         if False:
             name = "Dinsdale"
             print(name)
@@ -820,7 +815,6 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         "Docstring"
         age: int
         likes_spam: bool
-
         name: str = "Dinsdale"
         print(name)
         if False:
@@ -898,7 +892,6 @@ class ClassVariableTestCase(RetypeTestCase):
         class C:
             "Docstring"
             name: str
-
             if False:
                 name = "Dinsdale"
                 print(name)
@@ -949,7 +942,6 @@ class ClassVariableTestCase(RetypeTestCase):
             "Docstring"
             age: int
             likes_spam: bool
-
             name: str = "Dinsdale"
             print(name)
             if False:
@@ -957,6 +949,235 @@ class ClassVariableTestCase(RetypeTestCase):
                 name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_instance_fields_no_assignment(self):
+        pyi_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
+                    self.field0.subfield1.subfield2: Tuple[int]
+                    self.field1: str
+                    self.field2: int
+                    self.field3: bool
+            class D:
+                def __init__(self, a1: C, **kwargs) -> None:
+                    self.field1: float
+                    self.field2: Optional[str]
+                    self.field3: int
+        """
+        src_txt = """
+            class C:
+                def __init__(self, a1, *args, kwonly1) -> None:
+                    "Creates C."
+                    super().__init__()
+
+            class D:
+                def __init__(self, a1, **kwargs) -> None:
+                    "Creates D."
+                    super().__init__()
+        """
+        expected_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
+                    "Creates C."
+                    self.field0.subfield1.subfield2: Tuple[int]
+                    self.field1: str
+                    self.field2: int
+                    self.field3: bool
+                    super().__init__()
+
+            class D:
+                def __init__(self, a1: C, **kwargs) -> None:
+                    "Creates D."
+                    self.field1: float
+                    self.field2: Optional[str]
+                    self.field3: int
+                    super().__init__()
+        """
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_instance_fields_no_assignment_no_docstring(self):
+        pyi_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
+                    self.field0.subfield1.subfield2: Tuple[int]
+                    self.field1: str
+                    self.field2: int
+                    self.field3: bool
+            class D:
+                def __init__(self, a1: C, **kwargs) -> None:
+                    self.field1: float
+                    self.field2: Optional[str]
+                    self.field3: int
+        """
+        src_txt = """
+            class C:
+                def __init__(self, a1, *args, kwonly1) -> None:
+                    super().__init__()
+
+            class D:
+                def __init__(self, a1, **kwargs) -> None:
+                    super().__init__()
+        """
+        expected_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
+                    self.field0.subfield1.subfield2: Tuple[int]
+                    self.field1: str
+                    self.field2: int
+                    self.field3: bool
+                    super().__init__()
+
+            class D:
+                def __init__(self, a1: C, **kwargs) -> None:
+                    self.field1: float
+                    self.field2: Optional[str]
+                    self.field3: int
+                    super().__init__()
+        """
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_instance_fields_no_assignment_docstring(self):
+        pyi_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
+                    self.field0.subfield1.subfield2: Tuple[int]
+                    self.field1: str
+                    self.field2: int
+                    self.field3: bool
+            class D:
+                def __init__(self, a1: C, **kwargs) -> None:
+                    self.field1: float
+                    self.field2: Optional[str]
+                    self.field3: int
+        """
+        src_txt = """
+            class C:
+                def __init__(self, a1, *args, kwonly1) -> None:
+                    "Docstring"
+                    super().__init__()
+
+            class D:
+                def __init__(self, a1, **kwargs) -> None:
+                    "Docstring"
+                    super().__init__()
+        """
+        expected_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
+                    "Docstring"
+                    self.field0.subfield1.subfield2: Tuple[int]
+                    self.field1: str
+                    self.field2: int
+                    self.field3: bool
+                    super().__init__()
+
+            class D:
+                def __init__(self, a1: C, **kwargs) -> None:
+                    "Docstring"
+                    self.field1: float
+                    self.field2: Optional[str]
+                    self.field3: int
+                    super().__init__()
+        """
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_instance_fields_assignment_docstring(self):
+        pyi_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
+                    self.field0.subfield1.subfield2: Tuple[int]
+                    self.field1: str
+                    self.field2: int
+                    self.field3: bool
+            class D:
+                def __init__(self, a1: C, **kwargs) -> None:
+                    self.field1: float
+                    self.field2: Optional[str]
+                    self.field3: int
+        """
+        src_txt = """
+            class C:
+                def __init__(self, a1, *args, kwonly1) -> None:
+                    "Docstring"
+                    super().__init__()
+                    self.field2 = 0
+                    self.field1 = a1
+                    print("unrelated instruction")
+                    self.field0.subfield1.subfield2 = args[self.field2]
+
+            class D:
+                def __init__(self, a1, **kwargs) -> None:
+                    "Docstring"
+                    super().__init__()
+                    self.field2 = None
+        """
+        expected_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
+                    "Docstring"
+                    self.field3: bool
+                    super().__init__()
+                    self.field2: int = 0
+                    self.field1: str = a1
+                    print("unrelated instruction")
+                    self.field0.subfield1.subfield2: Tuple[int] = args[self.field2]
+
+            class D:
+                def __init__(self, a1: C, **kwargs) -> None:
+                    "Docstring"
+                    self.field1: float
+                    self.field3: int
+                    super().__init__()
+                    self.field2: Optional[str] = None
+        """
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_instance_fields_assignment_no_docstring(self):
+        pyi_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
+                    self.field0.subfield1.subfield2: Tuple[int]
+                    self.field1: str
+                    self.field2: int
+                    self.field3: bool
+            class D:
+                def __init__(self, a1: C, **kwargs) -> None:
+                    self.field1: float
+                    self.field2: Optional[str]
+                    self.field3: int
+        """
+        src_txt = """
+            class C:
+                def __init__(self, a1, *args, kwonly1) -> None:
+                    super().__init__()
+                    self.field2 = 0
+                    self.field1 = a1
+                    print("unrelated instruction")
+                    self.field0.subfield1.subfield2 = args[self.field2]
+
+            class D:
+                def __init__(self, a1, **kwargs) -> None:
+                    super().__init__()
+                    self.field2 = None
+        """
+        expected_txt = """
+            class C:
+                def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
+                    self.field3: bool
+                    super().__init__()
+                    self.field2: int = 0
+                    self.field1: str = a1
+                    print("unrelated instruction")
+                    self.field0.subfield1.subfield2: Tuple[int] = args[self.field2]
+
+            class D:
+                def __init__(self, a1: C, **kwargs) -> None:
+                    self.field1: float
+                    self.field3: int
+                    super().__init__()
+                    self.field2: Optional[str] = None
+        """
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
 

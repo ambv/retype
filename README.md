@@ -17,7 +17,7 @@ Things to be done:
 * [x] reapply module-level field annotations
 * [ ] reapply module-level type aliases
 * [x] reapply class-level field annotations
-* [ ] reapply instance-level field annotations
+* [x] reapply instance-level field annotations
 * [ ] add a --python2 option and remove print_statement by default
 * [ ] add the --keep-byte-literals option for Mercurial
 * [ ] support type comments in .pyi files

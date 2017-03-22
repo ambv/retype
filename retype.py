@@ -275,8 +275,10 @@ def _r_annassign(annassign, body):
     target = annassign.target
     if isinstance(target, ast3.Name):
         name = target.id
+    elif isinstance(target, ast3.Attribute):
+        name = serialize_attribute(target)
     else:
-        raise NotImplementedError(f"unexpected assignment target")
+        raise NotImplementedError(f"unexpected assignment target: {target}")
 
     annotation = minimize_whitespace(astunparse.unparse(annassign.annotation))
     annassign_node = Node(
@@ -297,7 +299,10 @@ def _r_annassign(annassign, body):
         expr = maybe_expr.children
         maybe_annotation = None
 
-        if expr[0].type == token.NAME and expr[0].value == name:
+        if (
+            expr[0].type in (token.NAME, syms.power) and
+            minimize_whitespace(str(expr[0])) == name
+        ):
             if expr[1].type == syms.annassign:
                 # variable already typed
                 maybe_annotation = expr[1].children[1]
@@ -330,11 +335,9 @@ def _r_annassign(annassign, body):
     else:
         # If the variable was used in some `if` statement, etc.; let's define
         # its type from the stub on the top level of the function.
-        offset = 0
+        _offset = 0
         prefix = ''
-        for i, child in enumerate(body.children):
-            offset = i
-            prefix = child.prefix
+        for _offset, child in enumerate(body.children):
             if child.type == syms.simple_stmt:
                 if child.children[0].type == syms.expr_stmt:
                     expr = child.children[0].children
@@ -349,11 +352,15 @@ def _r_annassign(annassign, body):
                 elif child.children[0].type != token.STRING:
                     break
 
-            elif child.type not in {token.NEWLINE, token.INDENT}:
+            elif child.type == token.INDENT:
+                prefix = child.value
+            elif child.type != token.NEWLINE:
                 break
 
+        prefix, child.prefix = child.prefix, prefix
+
         body.children.insert(
-            offset,
+            _offset,
             Node(
                 syms.simple_stmt,
                 [
@@ -369,6 +376,24 @@ def _r_annassign(annassign, body):
                 prefix=prefix.lstrip('\n'),
             ),
         )
+
+
+@singledispatch
+def serialize_attribute(attr):
+    """serialize_attribute(Attribute()) -> "self.f1.f2.f3"
+
+    Change an AST object into its string representation."""
+    return ""
+
+
+@serialize_attribute.register(ast3.Attribute)
+def _sa_attribute(attr):
+    return f"{serialize_attribute(attr.value)}.{attr.attr}"
+
+
+@serialize_attribute.register(ast3.Name)
+def _sa_name(name):
+    return name.id
 
 
 @singledispatch
