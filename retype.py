@@ -153,8 +153,8 @@ def _r_list(l, lib2to3_node):
 @reapply.register(ast3.ImportFrom)
 def _r_importfrom(import_from, node):
     assert node.type in (syms.file_input, syms.suite)
-    level = import_from.level
-    module = '.' * level + import_from.module
+    level = import_from.level or 0
+    module = '.' * level + (import_from.module or '')
     names = import_from.names
     for child in node.children:
         if child.type != syms.simple_stmt:
