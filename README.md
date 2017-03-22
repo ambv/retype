@@ -26,6 +26,32 @@ Things to be done:
 * [ ] warn about functions and classes with missing annotations
 
 
+## Design principles
+
+* it's okay for a given .pyi file to be incomplete (gradual typing,
+  baby!)
+* it's okay for functions and classes to be out of order in .pyi files
+  and the source
+* it's an **error** for a function or class to be missing in the source
+* it's an **error** for a function's signature to be incompatible
+  between the .pyi file and the source
+* it's an **error** for an annotation in the source to be incompatible
+  with the .pyi file
+
+
+## Known limitations
+
+* some forms of forward references in .pyi files cannot be applied
+  correctly in the source due to out-of-order definitions; modify your
+  .pyi files to use strings
+* line numbers in the annotated source will no longer match original
+  source code; this is because re-application of types requires copying
+  typing imports and alias definitions from the .pyi file
+* while formatting of the original source will be preserved, formatting
+  of the applied annotations might differ from the formatting in .pyi
+  files
+
+
 ## Tests
 
 Just run:
