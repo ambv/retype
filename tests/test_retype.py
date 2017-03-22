@@ -824,6 +824,41 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
+    def test_complex_with_imports(self):
+        pyi_txt = """
+        from typing import Optional
+
+        name: Optional[str]
+        age: int
+        likes_spam: bool
+        """
+        src_txt = """
+        "Docstring"
+
+        import sys
+
+        name = "Dinsdale"
+        print(name)
+        if False:
+            age = 100
+            name = "Diinsdaalee"
+        """
+        expected_txt = """
+        "Docstring"
+
+        import sys
+
+        from typing import Optional
+        age: int
+        likes_spam: bool
+        name: Optional[str] = "Dinsdale"
+        print(name)
+        if False:
+            age = 100
+            name = "Diinsdaalee"
+        """
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
 
 class ClassVariableTestCase(RetypeTestCase):
     def test_basic(self):
