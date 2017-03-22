@@ -336,6 +336,7 @@ class FunctionVariableTestCase(RetypeTestCase):
             name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_no_value(self):
         pyi_txt = """
@@ -359,6 +360,7 @@ class FunctionVariableTestCase(RetypeTestCase):
             name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_default_type(self):
         pyi_txt = """
@@ -377,14 +379,15 @@ class FunctionVariableTestCase(RetypeTestCase):
         expected_txt = """
         def fun() -> None:
             "Docstring"
-
             name: str
+
             if False:
                 name = "Dinsdale"
                 print(name)
                 name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_type_mismatch(self):
         pyi_txt = """
@@ -437,6 +440,7 @@ class FunctionVariableTestCase(RetypeTestCase):
                 name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
 
 class MethodTestCase(RetypeTestCase):
@@ -565,6 +569,153 @@ class MethodTestCase(RetypeTestCase):
         )
 
 
+class MethodVariableTestCase(RetypeTestCase):
+    def test_basic(self):
+        pyi_txt = """
+        class C:
+            def fun(self) -> None:
+                name: str
+                age: int
+        """
+        src_txt = """
+        class C:
+            def fun(self):
+                "Docstring"
+
+                name = "Dinsdale"
+                age = 47
+                print(name, age)
+                name = "Diinsdaalee"
+        """
+        expected_txt = """
+        class C:
+            def fun(self) -> None:
+                "Docstring"
+
+                name: str = "Dinsdale"
+                age: int = 47
+                print(name, age)
+                name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_no_value(self):
+        pyi_txt = """
+        class C:
+            def fun(self) -> None:
+                name: str
+        """
+        src_txt = """
+        class C:
+            def fun(self):
+                "Docstring"
+
+                name: str
+                print(name)
+                name = "Diinsdaalee"
+        """
+        expected_txt = """
+        class C:
+            def fun(self) -> None:
+                "Docstring"
+
+                name: str
+                print(name)
+                name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_default_type(self):
+        pyi_txt = """
+        class C:
+            def fun(self) -> None:
+                name: str
+        """
+        src_txt = """
+        class C:
+            def fun(self):
+                "Docstring"
+
+                if False:
+                    name = "Dinsdale"
+                    print(name)
+                    name = "Diinsdaalee"
+        """
+        expected_txt = """
+        class C:
+            def fun(self) -> None:
+                "Docstring"
+                name: str
+
+                if False:
+                    name = "Dinsdale"
+                    print(name)
+                    name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_type_mismatch(self):
+        pyi_txt = """
+        class C:
+            def fun(self) -> None:
+                name: str
+        """
+        src_txt = """
+        class C:
+            def fun(self):
+                "Docstring"
+
+                name: int = 0
+                print(name)
+                name = "Diinsdaalee"
+        """
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 3:1: " +
+            "incompatible existing variable annotation for 'name'. " +
+            "Expected: 'str', actual: 'int'",
+            str(exception),
+        )
+
+    def test_complex(self):
+        pyi_txt = """
+        class C:
+            def fun(self) -> None:
+                name: str
+                age: int
+                likes_spam: bool
+        """
+        src_txt = """
+        class C:
+            def fun(self):
+                "Docstring"
+
+                name = "Dinsdale"
+                print(name)
+                if False:
+                    age = 100
+                    name = "Diinsdaalee"
+        """
+        expected_txt = """
+        class C:
+            def fun(self) -> None:
+                "Docstring"
+                age: int
+                likes_spam: bool
+
+                name: str = "Dinsdale"
+                print(name)
+                if False:
+                    age = 100
+                    name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+
 class ModuleLevelVariableTestCase(RetypeTestCase):
     def test_basic(self):
         pyi_txt = """
@@ -585,6 +736,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_no_value(self):
         pyi_txt = """
@@ -605,6 +757,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_default_type(self):
         pyi_txt = """
@@ -620,14 +773,15 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         """
         expected_txt = """
         "Docstring"
-
         name: str
+
         if False:
             name = "Dinsdale"
             print(name)
             name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_type_mismatch(self):
         pyi_txt = """
@@ -674,7 +828,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
             name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
-
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
 
 class ClassVariableTestCase(RetypeTestCase):
@@ -700,6 +854,7 @@ class ClassVariableTestCase(RetypeTestCase):
             name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_no_value(self):
         pyi_txt = """
@@ -723,6 +878,7 @@ class ClassVariableTestCase(RetypeTestCase):
             name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_default_type(self):
         pyi_txt = """
@@ -741,14 +897,15 @@ class ClassVariableTestCase(RetypeTestCase):
         expected_txt = """
         class C:
             "Docstring"
-
             name: str
+
             if False:
                 name = "Dinsdale"
                 print(name)
                 name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_type_mismatch(self):
         pyi_txt = """
@@ -800,6 +957,7 @@ class ClassVariableTestCase(RetypeTestCase):
                 name = "Diinsdaalee"
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
 
 if __name__ == '__main__':
