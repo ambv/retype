@@ -566,6 +566,44 @@ class MethodTestCase(RetypeTestCase):
             str(exception),
         )
 
+    def test_decorator_mismatch2(self):
+        pyi_txt = """
+            class C:
+                @staticmethod
+                def method(a1, *args: str, kwonly1: int) -> None: ...
+        """
+        src_txt = """
+            class C:
+                @this.isnt.a.staticmethod
+                def method(self, a1, *args, kwonly1) -> None:
+                    print("I am a fake staticmethod, don't use me!")
+        """
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Incompatible method kind for 'method': 4:1: Expected: " +
+            "staticmethod, actual: instancemethod",
+            str(exception),
+        )
+
+    def test_decorator_mismatch3(self):
+        pyi_txt = """
+            class C:
+                @this.isnt.a.staticmethod
+                def method(a1, *args: str, kwonly1: int) -> None: ...
+        """
+        src_txt = """
+            class C:
+                @staticmethod
+                def method(a1, *args, kwonly1) -> None:
+                    print("I am a staticmethod, don't use me!")
+        """
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Incompatible method kind for 'method': 4:1: Expected: " +
+            "instancemethod, actual: staticmethod",
+            str(exception),
+        )
+
 
 class MethodVariableTestCase(RetypeTestCase):
     def test_basic(self):

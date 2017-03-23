@@ -426,10 +426,10 @@ def decorator_names(obj):
 @decorator_names.register(Node)
 def _dn_node(node):
     if node.type == syms.decorator:
-        return [node.children[1].value]
+        return [str(node.children[1])]
 
     if node.type == syms.decorators:
-        return [decorator.children[1].value for decorator in node.children]
+        return [str(decorator.children[1]) for decorator in node.children]
 
     return []
 
@@ -454,7 +454,7 @@ def _dn_call(call):
 
 @decorator_names.register(ast3.Attribute)
 def _dn_attribute(attr):
-    return [astunparse.unparse(attr).strip()]
+    return [serialize_attribute(attr)]
 
 
 def is_builtin_method_decorator(name):
