@@ -5,7 +5,7 @@ from unittest import main, TestCase
 
 from typed_ast import ast3
 
-from retype import reapply, lib2to3_parse
+from retype import reapply, lib2to3_parse, serialize_attribute
 
 
 class RetypeTestCase(TestCase):
@@ -1252,6 +1252,24 @@ class ClassVariableTestCase(RetypeTestCase):
                     self.field2: Optional[str] = None
         """
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+
+class SerializeTestCase(RetypeTestCase):
+    def test_serialize_attribute(self):
+        src_txt = "a.b.c"
+        expected = "a.b.c"
+
+        src = ast3.parse(dedent(src_txt))
+        attr_expr = src.body[0]
+        self.assertEqual(serialize_attribute(attr_expr), expected)
+
+    def test_serialize_name(self):
+        src_txt = "just_a_flat_name"
+        expected = "just_a_flat_name"
+
+        src = ast3.parse(dedent(src_txt))
+        attr_expr = src.body[0]
+        self.assertEqual(serialize_attribute(attr_expr), expected)
 
 
 if __name__ == '__main__':

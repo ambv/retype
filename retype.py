@@ -373,6 +373,11 @@ def _sa_name(name):
     return name.id
 
 
+@serialize_attribute.register(ast3.Expr)
+def _sa_expr(expr):
+    return serialize_attribute(expr.value)
+
+
 @singledispatch
 def names_already_imported(names, node):
     """Returns True if `node` represents `names`."""
