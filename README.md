@@ -27,7 +27,6 @@ Things to be done:
 * [x] reapply module-level type aliases
 * [x] reapply class-level field annotations
 * [x] reapply instance-level field annotations
-* [ ] add a --python2 option and remove print_statement by default
 * [ ] add the --keep-byte-literals option for Mercurial
 * [ ] support type comments in .pyi files
 * [ ] add a --backward option to output type comments instead of annotations
@@ -59,6 +58,8 @@ Things to be done:
 * while formatting of the original source will be preserved, formatting
   of the applied annotations might differ from the formatting in .pyi
   files
+* the source where type annotations get re-applied cannot use the
+  legacy `print` statement; that wouldn't work at runtime.
 
 
 ## Tests

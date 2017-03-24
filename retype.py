@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 """Re-apply type annotations from .pyi stubs to your codebase."""
 
-from __future__ import print_function
-
 from functools import partial, singledispatch
 from lib2to3 import pygram, pytree
 from lib2to3.pgen2 import driver
 from lib2to3.pgen2 import token
 from lib2to3.pgen2.parse import ParseError
-from lib2to3.refactor import _detect_future_features
 from lib2to3.pygram import python_symbols as syms
 from lib2to3.pytree import Node, Leaf, type_repr
 from pathlib import Path
@@ -109,10 +106,7 @@ def retype_file(pyi, srcs, targets):
 
 def lib2to3_parse(src_txt):
     """Given a string with source, return the lib2to3 Node."""
-    features = _detect_future_features(src_txt)
-    grammar = pygram.python_grammar
-    if 'print_function' in features:
-        grammar = pygram.python_grammar_no_print_statement
+    grammar = pygram.python_grammar_no_print_statement
     drv = driver.Driver(grammar, pytree.convert)
     try:
         result = drv.parse_string(src_txt, True)

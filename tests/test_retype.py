@@ -1029,8 +1029,6 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         src_txt = """
         "Docstring"
 
-        from __future__ import print_function
-
         import sys
 
         SOME_GLOBAL: int = 0
@@ -1040,8 +1038,6 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         """
         expected_txt = """
         "Docstring"
-
-        from __future__ import print_function
 
         import sys
 
@@ -1484,6 +1480,23 @@ class SerializeTestCase(RetypeTestCase):
         src = ast3.parse(dedent(src_txt))
         attr_expr = src.body[0]
         self.assertEqual(serialize_attribute(attr_expr), expected)
+
+
+class PrintStmtTestCase(RetypeTestCase):
+    def test_print_stmt_crash(self):
+        pyi_txt = "def f() -> None: ...\n"
+        src_txt = """
+        import sys
+
+        def f():
+            print >>sys.stderr, "Nope"  # funnily, this parses just fine.
+            print "This", "will", "fail", "to", "parse"
+        """
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            'Cannot parse: 6:10:     print "This", "will", "fail", "to", "parse"',
+            str(exception),
+        )
 
 
 if __name__ == '__main__':
