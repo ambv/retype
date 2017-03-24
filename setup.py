@@ -47,7 +47,7 @@ setup(
     license='MIT',
     py_modules=['retype'],
     zip_safe=False,
-    install_requires=['click', 'typed-ast', 'astunparse'],
+    install_requires=['click', 'typed-ast'],
     test_suite='tests.test_retype',
     classifiers=[
         'Development Status :: 3 - Alpha',

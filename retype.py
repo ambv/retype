@@ -15,7 +15,6 @@ from pathlib import Path
 import re
 import sys
 
-import astunparse
 import click
 from typed_ast import ast3
 
@@ -280,12 +279,13 @@ def _r_annassign(annassign, body):
     else:
         raise NotImplementedError(f"unexpected assignment target: {target}")
 
-    annotation = minimize_whitespace(astunparse.unparse(annassign.annotation))
+    annotation = convert_annotation(annassign.annotation)
+    annotation.prefix = " "
     annassign_node = Node(
         syms.annassign,
         [
             new(_colon),
-            Leaf(token.NAME, annotation, prefix=" "),
+            annotation,
         ],
     )
     for child in body.children:
@@ -319,12 +319,13 @@ def _r_annassign(annassign, body):
                 continue
 
             if maybe_annotation is not None:
-                actual_annotation = minimize_whitespace(str(maybe_annotation))
-                if annotation != actual_annotation:
+                if annotation != maybe_annotation:
+                    expected_annotation = minimize_whitespace(str(annotation))
+                    actual_annotation = minimize_whitespace(str(maybe_annotation))
                     raise ValueError(
                         f"incompatible existing variable annotation for " +
                         f"{name!r}. Expected: " +
-                        f"{annotation!r}, actual: {actual_annotation!r}"
+                        f"{expected_annotation!r}, actual: {actual_annotation!r}"
                     )
             else:
                 annassign_node.children.append(new(_eq))
@@ -376,6 +377,83 @@ def _sa_name(name):
 @serialize_attribute.register(ast3.Expr)
 def _sa_expr(expr):
     return serialize_attribute(expr.value)
+
+
+@singledispatch
+def convert_annotation(ann):
+    """Converts an AST object into its lib2to3 equivalent."""
+    raise NotImplementedError(f"unknown AST node type: {ann!r}")
+
+
+@convert_annotation.register(ast3.Subscript)
+def _c_subscript(sub):
+    return Node(
+        syms.power,
+        [
+            convert_annotation(sub.value), Node(
+                syms.trailer,
+                [
+                    new(_lsqb),
+                    convert_annotation(sub.slice),
+                    new(_rsqb),
+                ],
+            )
+        ],
+    )
+
+
+@convert_annotation.register(ast3.Name)
+def _c_name(name):
+    return Leaf(token.NAME, name.id)
+
+
+@convert_annotation.register(ast3.NameConstant)
+def _c_nameconstant(const):
+    return Leaf(token.NAME, repr(const.value))
+
+
+@convert_annotation.register(ast3.Ellipsis)
+def _c_ellipsis(ell):
+    return Node(syms.atom, [new(_dot), new(_dot), new(_dot)])
+
+
+@convert_annotation.register(ast3.Str)
+def _c_str(s):
+    return Leaf(token.STRING, repr(s.s))
+
+
+@convert_annotation.register(ast3.Index)
+def _c_index(index):
+    return convert_annotation(index.value)
+
+
+@convert_annotation.register(ast3.Tuple)
+def _c_tuple(tup):
+    contents = [convert_annotation(elt) for elt in tup.elts]
+    for index in range(len(contents) - 1, 0, -1):
+        contents[index].prefix = " "
+        contents.insert(index, new(_comma))
+
+    return Node(
+        syms.subscriptlist,
+        contents,
+    )
+
+
+@convert_annotation.register(ast3.List)
+def _c_list(l):
+    contents = [convert_annotation(elt) for elt in l.elts]
+    for index in range(len(contents) - 1, 0, -1):
+        contents[index].prefix = " "
+        contents.insert(index, new(_comma))
+
+    list_literal = [
+        new(_lsqb),
+        new(_rsqb),
+    ]
+    if contents:
+        list_literal.insert(1, Node(syms.listmaker, contents))
+    return Node(syms.atom, list_literal)
 
 
 @singledispatch
@@ -635,17 +713,16 @@ def annotate_return(function, ast_returns, offset):
 
         raise NotImplementedError(f"unexpected return token: {str(function[offset])!r}")
 
-    ret_stmt = Leaf(
-        token.NAME,
-        minimize_whitespace(astunparse.unparse(ast_returns)),
-        prefix=" ",
-    )
+    ret_stmt = convert_annotation(ast_returns)
+    ret_stmt.prefix = " "
     if function[offset] == _rarrow:
-        existing_return = minimize_whitespace(str(function[offset + 1]))
-        if existing_return != ret_stmt.value:
+        existing_return = function[offset + 1]
+        if existing_return != ret_stmt:
+            ret_stmt_str = minimize_whitespace(str(ret_stmt))
+            existing_return_str = minimize_whitespace(str(existing_return))
             raise ValueError(
                 f"incompatible existing return value. Expected: " +
-                f"{ret_stmt.value!r}, actual: {existing_return!r}"
+                f"{ret_stmt_str!r}, actual: {existing_return_str!r}"
             )
     elif function[offset] == _colon:
         function.insert(offset, new(_rarrow))
@@ -729,7 +806,7 @@ def get_annotated_param(node, arg, *, missing_ok=False):
 
     actual_ann = None
     if node.type == syms.tname:
-        actual_ann = minimize_whitespace(str(node.children[2]))
+        actual_ann = node.children[2]
         node = node.children[0]
     if arg.arg != node.value:
         raise ValueError(
@@ -747,20 +824,23 @@ def get_annotated_param(node, arg, *, missing_ok=False):
         )
 
     if arg.annotation is None:
-        ann = actual_ann
+        ann = new(actual_ann)
     else:
-        ann = minimize_whitespace(astunparse.unparse(arg.annotation))
+        ann = convert_annotation(arg.annotation)
+        ann.prefix = ' '
 
     if actual_ann is None:
         actual_ann = ann
 
     if ann != actual_ann:
+        ann_str = minimize_whitespace(str(ann))
+        actual_ann_str = minimize_whitespace(str(actual_ann))
         raise ValueError(
             f"incompatible annotation for {arg.arg!r}. Expected: " +
-            f"{ann!r}, actual: {actual_ann!r}"
+            f"{ann_str!r}, actual: {actual_ann_str!r}"
         )
 
-    return Node(syms.tname, [new(node), new(_colon), Leaf(token.NAME, ann, prefix=' ')])
+    return Node(syms.tname, [new(node), new(_colon), ann])
 
 
 def get_offset_and_prefix(body, skip_assignments=False):
@@ -821,11 +901,16 @@ def new(n, prefix=None):
 _as = Leaf(token.NAME, 'as', prefix=' ')
 _colon = Leaf(token.COLON, ':')
 _comma = Leaf(token.COMMA, ',')
+_dot = Leaf(token.DOT, '.')
 _dstar = Leaf(token.DOUBLESTAR, '**')
 _eq = Leaf(token.EQUAL, '=', prefix=' ')
+_lpar = Leaf(token.LPAR, '(')
+_lsqb = Leaf(token.LSQB, '[')
 _newline = Leaf(token.NEWLINE, '\n')
 _none = Leaf(token.NAME, 'None')
 _rarrow = Leaf(token.RARROW, '->', prefix=' ')
+_rpar = Leaf(token.RPAR, ')')
+_rsqb = Leaf(token.RSQB, ']')
 _star = Leaf(token.STAR, '*')
 
 if __name__ == '__main__':

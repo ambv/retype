@@ -147,19 +147,34 @@ class FunctionReturnTestCase(RetypeTestCase):
         src_txt = "def fun() -> None: ...\n"
         expected_txt = "def fun() -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_missing_return_value_src(self):
         pyi_txt = "def fun() -> None: ...\n"
         src_txt = "def fun(): ...\n"
         expected_txt = "def fun() -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_complex_return_value(self):
-        # Note: the current tuple formatting is unfortunate, this is how
-        # astunparse deals with it currently.
         pyi_txt = "def fun() -> List[Tuple[int, int]]: ...\n"
         src_txt = "def fun(): ...\n"
-        expected_txt = "def fun() -> List[Tuple[(int, int)]]: ...\n"
+        expected_txt = "def fun() -> List[Tuple[int, int]]: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_return_value2(self):
+        pyi_txt = "def fun() -> List[Tuple[Callable[[], Any], ...]]: ...\n"
+        src_txt = "def fun(): ...\n"
+        expected_txt = "def fun() -> List[Tuple[Callable[[], Any], ...]]: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_return_value3(self):
+        pyi_txt = "def fun() -> List[Callable[[str, int, 'Custom'], Any]]: ...\n"
+        src_txt = "def fun(): ...\n"
+        expected_txt = "def fun() -> List[Callable[[str, int, 'Custom'], Any]]: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_mismatched_return_value(self):
@@ -168,7 +183,7 @@ class FunctionReturnTestCase(RetypeTestCase):
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
             "Annotation problem in function 'fun': 1:1: incompatible existing " +
-            "return value. Expected: 'List[Tuple[(int, int)]]', actual: 'List[int]'",
+            "return value. Expected: 'List[Tuple[int, int]]', actual: 'List[int]'",
             str(exception),
         )
 
@@ -271,33 +286,34 @@ class FunctionArgumentTestCase(RetypeTestCase):
         src_txt = "def fun(a1: str) -> None: ...\n"
         expected_txt = "def fun(a1: str) -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_missing_ann_src(self):
         pyi_txt = "def fun(a1: str) -> None: ...\n"
         src_txt = "def fun(a1) -> None: ...\n"
         expected_txt = "def fun(a1: str) -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_no_args(self):
         pyi_txt = "def fun() -> None: ...\n"
         src_txt = "def fun() -> None: ...\n"
         expected_txt = "def fun() -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_complex_ann(self):
-        # Note: the current tuple formatting is unfortunate, this is how
-        # astunparse deals with it currently.
         pyi_txt = "def fun(a1: List[Tuple[int, int]]) -> None: ...\n"
         src_txt = "def fun(a1) -> None: ...\n"
-        expected_txt = "def fun(a1: List[Tuple[(int, int)]]) -> None: ...\n"
+        expected_txt = "def fun(a1: List[Tuple[int, int]]) -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_complex_ann_with_default(self):
-        # Note: the current tuple formatting is unfortunate, this is how
-        # astunparse deals with it currently.
         pyi_txt = "def fun(a1: List[Tuple[int, int]] = None) -> None: ...\n"
         src_txt = "def fun(a1=None) -> None: ...\n"
-        expected_txt = "def fun(a1: List[Tuple[(int, int)]] = None) -> None: ...\n"
+        expected_txt = "def fun(a1: List[Tuple[int, int]] = None) -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_complex_sig1(self):
@@ -305,12 +321,14 @@ class FunctionArgumentTestCase(RetypeTestCase):
         src_txt = "def fun(a1, *args, kwonly1=None, **kwargs) -> None: ...\n"
         expected_txt = "def fun(a1: str, *args: str, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_complex_sig2(self):
         pyi_txt = "def fun(a1: str, *, kwonly1: int, **kwargs) -> None: ...\n"
         src_txt = "def fun(a1, *, kwonly1=None, **kwargs) -> None: ...\n"
         expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
 
 class FunctionVariableTestCase(RetypeTestCase):
@@ -436,6 +454,28 @@ class FunctionVariableTestCase(RetypeTestCase):
             if False:
                 age = 100
                 name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_type(self):
+        pyi_txt = """
+        def fun() -> None:
+            many_things: Union[List[int], str, 'Custom', Tuple[int, ...]]
+        """
+        src_txt = """
+        def fun():
+            "Docstring"
+
+            many_things = []
+            other_code()
+        """
+        expected_txt = """
+        def fun() -> None:
+            "Docstring"
+
+            many_things: Union[List[int], str, 'Custom', Tuple[int, ...]] = []
+            other_code()
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
