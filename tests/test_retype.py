@@ -184,6 +184,41 @@ class FunctionReturnTestCase(RetypeTestCase):
             str(exception),
         )
 
+    def test_complex_return_value_type_comment(self):
+        pyi_txt = """
+        def fun():
+            # type: () -> List[Callable[[str, int, 'Custom'], Any]]
+            ...
+        """
+        src_txt = """
+        def fun():
+            ...
+        """
+        expected_txt = """
+        def fun() -> List[Callable[[str, int, 'Custom'], Any]]:
+            ...
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_return_value_spurious_type_comment(self):
+        pyi_txt = """
+        def fun():
+            # type: () -> List[Callable[[str, int, 'Custom'], Any]]
+            ...
+        """
+        src_txt = """
+        def fun():
+            # type: () -> List[Callable[[str, int, 'Custom'], Any]]
+            ...
+        """
+        expected_txt = """
+        def fun() -> List[Callable[[str, int, 'Custom'], Any]]:
+            ...
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
 
 class FunctionArgumentTestCase(RetypeTestCase):
     def test_missing_ann_both(self):
@@ -324,6 +359,85 @@ class FunctionArgumentTestCase(RetypeTestCase):
         pyi_txt = "def fun(a1: str, *, kwonly1: int, **kwargs) -> None: ...\n"
         src_txt = "def fun(a1, *, kwonly1=None, **kwargs) -> None: ...\n"
         expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_sig1_type_comment(self):
+        pyi_txt = """
+        def fun(a1, *args, kwonly1, **kwargs):
+            # type: (str, *str, int, **Any) -> None
+            ...
+        """
+        src_txt = "def fun(a1, *args, kwonly1=None, **kwargs) -> None: ...\n"
+        expected_txt = "def fun(a1: str, *args: str, kwonly1: int = None, **kwargs: Any) -> None: ...\n"  # noqa
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_sig2_type_comment(self):
+        pyi_txt = """
+        def fun(a1, *, kwonly1, **kwargs):
+            # type: (str, int, **Any) -> None
+            ...
+        """
+        src_txt = "def fun(a1, *, kwonly1=None, **kwargs) -> None: ...\n"
+        expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs: Any) -> None: ...\n"  # noqa
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_sig3_type_comment(self):
+        pyi_txt = """
+        def fun(a1):
+            # type: (Union[str, bytes]) -> None
+            ...
+        """
+        src_txt = "def fun(a1): ...\n"
+        expected_txt = "def fun(a1: Union[str, bytes]) -> None: ...\n"  # noqa
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_sig4_type_comment(self):
+        pyi_txt = """
+        def fun(
+            a1,  # type: str
+            *,
+            kwonly1,  # type: int
+            **kwargs  # type: Any
+        ):
+            # type: (...) -> None
+            ...
+        """
+        src_txt = "def fun(a1, *, kwonly1=None, **kwargs): ...\n"
+        expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs: Any) -> None: ...\n"  # noqa
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_sig4_spurious_type_comment(self):
+        pyi_txt = """
+        def fun(
+            a1,  # type: str
+            *,
+            kwonly1,  # type: int
+            **kwargs  # type: Any
+        ):
+            # type: (...) -> None
+            ...
+        """
+        src_txt = """
+        def fun(a1,
+                *,
+                kwonly1=None,  # type: int
+                **kwargs
+        ):
+            ...
+        """
+        expected_txt = """
+        def fun(a1: str,
+                *,
+                kwonly1: int = None,
+                **kwargs: Any
+        ) -> None:
+            ...
+        """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
@@ -640,6 +754,118 @@ class MethodTestCase(RetypeTestCase):
             "instancemethod, actual: staticmethod",
             str(exception),
         )
+
+    def test_complex_sig1_type_comment(self):
+        pyi_txt = """
+        class C:
+            @staticmethod
+            def fun(a1, *args, kwonly1, **kwargs):
+                # type: (str, *str, int, **Any) -> None
+                ...
+        """
+        src_txt = """
+        class C:
+            @staticmethod
+            def fun(a1, *args, kwonly1=None, **kwargs):
+                ...
+        """
+        expected_txt = """
+        class C:
+            @staticmethod
+            def fun(a1: str, *args: str, kwonly1: int = None, **kwargs: Any) -> None:
+                ...
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_sig2_type_comment(self):
+        pyi_txt = """
+        class C:
+            def fun(self, a1, *, kwonly1, **kwargs):
+                # type: (str, int, **Any) -> None
+                ...
+        """
+        src_txt = """
+        class C:
+            def fun(self, a1, *, kwonly1=None, **kwargs):
+                ...
+        """
+        expected_txt = """
+        class C:
+            def fun(self, a1: str, *, kwonly1: int = None, **kwargs: Any) -> None:
+                ...
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_sig3_type_comment(self):
+        pyi_txt = """
+        class C:
+            @staticmethod
+            def fun(a1):
+                # type: (Union[str, bytes]) -> None
+                ...
+        """
+        src_txt = """
+        class C:
+            @staticmethod
+            def fun(a1):
+                ...
+        """
+        expected_txt = """
+        class C:
+            @staticmethod
+            def fun(a1: Union[str, bytes]) -> None:
+                ...
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_sig4_type_comment(self):
+        pyi_txt = """
+        class C:
+            @classmethod
+            def fun(cls, a1):
+                # type: (Union[str, bytes]) -> None
+                ...
+        """
+        src_txt = """
+        class C:
+            @classmethod
+            def fun(cls, a1):
+                ...
+        """
+        expected_txt = """
+        class C:
+            @classmethod
+            def fun(cls, a1: Union[str, bytes]) -> None:
+                ...
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_complex_sig5_type_comment(self):
+        pyi_txt = """
+        class C:
+            @classmethod
+            def fun(cls, a1):
+                # type: (Type['C'], Union[str, bytes]) -> None
+                ...
+        """
+        src_txt = """
+        class C:
+            @classmethod
+            def fun(cls, a1):
+                ...
+        """
+        expected_txt = """
+        class C:
+            @classmethod
+            def fun(cls: Type['C'], a1: Union[str, bytes]) -> None:
+                ...
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
 
 class MethodVariableTestCase(RetypeTestCase):

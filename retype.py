@@ -223,9 +223,16 @@ def _r_classdef(cls, node):
 def _r_functiondef(fun, node):
     assert node.type in (syms.file_input, syms.suite)
     name = Leaf(token.NAME, fun.name)
-    args = fun.args
-    returns = fun.returns
-    is_method = node.parent is not None and node.parent.type == syms.classdef
+    pyi_decorators = decorator_names(fun.decorator_list)
+    pyi_method_decorators = list( \
+        filter(is_builtin_method_decorator, pyi_decorators)
+    ) or ['instancemethod']
+    is_method = (
+        node.parent is not None and \
+        node.parent.type == syms.classdef and
+        "staticmethod" not in pyi_method_decorators
+    )
+    args, returns = get_function_signature(fun, is_method=is_method)
     for child in node.children:
         decorators = None
         if child.type == syms.decorated:
@@ -244,21 +251,17 @@ def _r_functiondef(fun, node):
             lineno = child.get_lineno()
             column = 1
 
-            if is_method and decorators:
-                pyi_decorators = decorator_names(fun.decorator_list)
+            if decorators:
                 src_decorators = decorator_names(decorators)
-                pyi_builtin_decorators = list(
-                    filter(is_builtin_method_decorator, pyi_decorators)
-                ) or ['instancemethod']
-                src_builtin_decorators = list(
+                src_method_decorators = list(
                     filter(is_builtin_method_decorator, src_decorators)
                 ) or ['instancemethod']
-                if pyi_builtin_decorators != src_builtin_decorators:
+                if pyi_method_decorators != src_method_decorators:
                     raise ValueError(
                         f"Incompatible method kind for {fun.name!r}: " +
                         f"{lineno}:{column}: Expected: " +
-                        f"{pyi_builtin_decorators[0]}, actual: " +
-                        f"{src_builtin_decorators[0]}"
+                        f"{pyi_method_decorators[0]}, actual: " +
+                        f"{src_method_decorators[0]}"
                     )
 
                 is_method = "staticmethod" not in pyi_decorators
@@ -269,11 +272,12 @@ def _r_functiondef(fun, node):
                 )
                 annotate_return(child.children, returns, offset + 2)
                 reapply(fun.body, child.children[-1])
+                remove_function_signature_type_comment(child.children[-1])
             except ValueError as ve:
                 raise ValueError(
                     f"Annotation problem in function {name.value!r}: " +
                     f"{lineno}:{column}: {ve}"
-                )
+                ) from None
             break
     else:
         raise ValueError(f"Function {name.value!r} not found in source.")
@@ -813,6 +817,11 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
 
     if typedargslist:
         typedargslist = typedargslist[1:]  # drop the initial comma
+        for arg in typedargslist:
+            # remove now spurious type comments
+            arg.prefix = re.sub(
+                r'[\t ]*# type:[^\n]+\n', '\n', arg.prefix, re.MULTILINE,
+            )
         if len(typedargslist) == 1:
             # don't pack a single argument to be consistent with how lib2to3
             # parses existing code.
@@ -860,6 +869,163 @@ def annotate_return(function, ast_returns, offset):
         function.insert(offset + 1, ret_stmt)
     else:
         raise NotImplementedError(f"unexpected return token: {str(function[offset])!r}")
+
+
+def get_function_signature(fun, *, is_method=False):
+    """Returns (args, returns).
+
+    `args` is ast3.arguments, `returns` is the return type AST node. The kicker
+    about this function is that it pushes type comments into proper annotation
+    fields, standardizing type handling.
+    """
+    args = fun.args
+    returns = fun.returns
+    if fun.type_comment:
+        try:
+            args_tc, returns_tc = parse_signature_type_comment(fun.type_comment)
+            if returns and returns_tc:
+                raise ValueError(
+                    "using both a type annotation and a type comment is not allowed"
+                )
+            returns = returns_tc
+            copy_arguments_to_annotations(args, args_tc, is_method=is_method)
+        except (SyntaxError, ValueError) as exc:
+            raise ValueError(
+                f"Annotation problem in function {fun.name!r}: " +
+                f"{fun.lineno}:{fun.col_offset + 1}: {exc}"
+            )
+    copy_type_comments_to_annotations(args)
+
+    return args, returns
+
+
+def parse_signature_type_comment(type_comment):
+    """Parse the fugly signature type comment into AST nodes.
+
+    Caveats: ASTifying **kwargs is impossible with the current grammar so we
+    hack it into unary subtraction (to differentiate from Starred in vararg).
+
+    For example from:
+    "(str, int, *int, **Any) -> 'SomeReturnType'"
+
+    To:
+    ([ast3.Name, ast.Name, ast3.Name, ast.Name], ast3.Str)
+    """
+    try:
+        result = ast3.parse(type_comment, '<func_type>', 'func_type')
+    except SyntaxError:
+        raise ValueError(f"invalid function signature type comment: {type_comment!r}")
+
+    assert isinstance(result, ast3.FunctionType)
+    argtypes = result.argtypes
+    if len(argtypes) == 1:
+        argtypes = argtypes[0]
+    return argtypes, result.returns
+
+
+def parse_type_comment(type_comment):
+    """Parse a type comment string into AST nodes."""
+    try:
+        result = ast3.parse(type_comment, '<type_comment>', 'eval')
+    except SyntaxError:
+        raise ValueError(f"invalid type comment: {type_comment!r}") from None
+
+    assert isinstance(result, ast3.Expression)
+    return result.body
+
+
+def copy_arguments_to_annotations(args, type_comment, *, is_method=False):
+    """Copies AST nodes from `type_comment` into the ast3.arguments in `args`.
+
+    Does validaation of argument count (allowing for untyped self/cls)
+    and type (vararg and kwarg).
+    """
+    if isinstance(type_comment, ast3.Ellipsis):
+        return
+
+    expected = len(args.args)
+    if args.vararg:
+        expected += 1
+    expected += len(args.kwonlyargs)
+    if args.kwarg:
+        expected += 1
+    actual = len(type_comment) if isinstance(type_comment, list) else 1
+    if expected != actual:
+        if is_method and expected - actual == 1:
+            pass  # fine, we're just skipping `self`, `cls`, etc.
+        else:
+            raise ValueError(
+                f"number of arguments in type comment doesn't match; " +
+                f"expected {expected}, found {actual}"
+            )
+
+    if isinstance(type_comment, list):
+        next_value = type_comment.pop
+    else:
+        # If there's just one value, only one of the loops and ifs below will
+        # be populated. We ensure this with the expected/actual length check
+        # above.
+        def next_value(_: int) -> ast3.AST:
+            return type_comment
+
+    for arg in args.args[expected - actual:]:
+        ensure_no_annotation(arg.annotation)
+        arg.annotation = next_value(0)
+
+    if args.vararg:
+        ensure_no_annotation(args.vararg.annotation)
+        args.vararg.annotation = next_value(0)
+
+    for arg in args.kwonlyargs:
+        ensure_no_annotation(arg.annotation)
+        arg.annotation = next_value(0)
+
+    if args.kwarg:
+        ensure_no_annotation(args.kwarg.annotation)
+        args.kwarg.annotation = next_value(0)
+
+
+def copy_type_comments_to_annotations(args):
+    """Copies argument type comments from the legacy long form to annotations
+    in the entire function signature.
+    """
+    for arg in args.args:
+        copy_type_comment_to_annotation(arg)
+
+    if args.vararg:
+        copy_type_comment_to_annotation(args.vararg)
+
+    for arg in args.kwonlyargs:
+        copy_type_comment_to_annotation(arg)
+
+    if args.kwarg:
+        copy_type_comment_to_annotation(args.kwarg)
+
+
+def copy_type_comment_to_annotation(arg):
+    if not arg.type_comment:
+        return
+
+    ann = parse_type_comment(arg.type_comment)
+    ensure_no_annotation(arg.annotation)
+    arg.annotation = ann
+
+
+def ensure_no_annotation(ann):
+    if ann:
+        raise ValueError(
+            f"using both a type annotation and a type comment is not allowed: {ann}"
+        )
+
+
+def remove_function_signature_type_comment(body):
+    """Removes the legacy signature type comment, leaving other comments if any."""
+    for node in body.children:
+        if node.type == token.INDENT:
+            prefix = node.prefix.lstrip()
+            if prefix.startswith('# type: '):
+                node.prefix = '\n'.join(prefix.split('\n')[1:])
+            break
 
 
 def minimize_whitespace(text):
