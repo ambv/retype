@@ -97,6 +97,7 @@ def retype_file(pyi, srcs, targets):
         src_txt = src_file.read()
     pyi_ast = ast3.parse(pyi_txt)
     src_node = lib2to3_parse(src_txt)
+    assert isinstance(pyi_ast, ast3.Module)
     reapply_all(pyi_ast.body, src_node)
     targets.mkdir(parents=True, exist_ok=True)
     with open(targets / py, 'w') as target_file:
@@ -174,8 +175,8 @@ def _r_importfrom(import_from, node):
             if str(imp[1]).strip() == module and names_already_imported(names, imp[3]):
                 break
     else:
-        imp = make_import(*names, from_module=module)
-        append_after_imports(imp, node)
+        import_stmt = make_import(*names, from_module=module)
+        append_after_imports(import_stmt, node)
     return []
 
 
@@ -194,8 +195,8 @@ def _r_import(import_, node):
             if names_already_imported(names, imp[1]):
                 break
     else:
-        imp = make_import(*names)
-        append_after_imports(imp, node)
+        import_stmt = make_import(*names)
+        append_after_imports(import_stmt, node)
     return []
 
 
@@ -399,7 +400,12 @@ def _r_assign(assign, body):
 
         expr = maybe_expr.children
 
-        if (expr[0].type == token.NAME and expr[0].value == name and expr[1] == _eq):
+        if (
+            isinstance(expr[0], Leaf) and
+            expr[0].type == token.NAME and
+            expr[0].value == name and
+            expr[1] == _eq
+        ):
             actual_value = expr[2]
             if value != actual_value:
                 value_str = minimize_whitespace(str(value))
@@ -415,7 +421,7 @@ def _r_assign(assign, body):
         # relative to their usage, and the type annotations likely come after
         # in the .pyi file.
 
-        def lazy_aliasing():
+        def lazy_aliasing() -> None:
             # We should find the first place where the alias is used and put it
             # right above.  This way we don't need to look at the value at all.
             _, prefix = get_offset_and_prefix(body, skip_assignments=True)
@@ -565,6 +571,7 @@ def _c_call(call):
 
 @convert_annotation.register(ast3.keyword)
 def _c_keyword(kwarg):
+    assert kwarg.arg
     return Node(
         syms.argument,
         [
@@ -743,7 +750,8 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
     typedargslist = []
 
     num_args_no_defaults = len(ast_args.args) - len(ast_args.defaults)
-    defaults = [None] * num_args_no_defaults + ast_args.defaults
+    defaults = [None] * num_args_no_defaults
+    defaults.extend(ast_args.defaults)
     typedargslist.extend(
         gen_annotated_params(ast_args.args, defaults, params, is_method=is_method)
     )
@@ -760,10 +768,12 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
             typedargslist.append(new(_comma))
             typedargslist.append(new(hopefully_star))
 
-    if ast_args.vararg:
+    if ast_args.vararg and hopefully_vararg:
         if hopefully_vararg.type == syms.tname:
+            assert isinstance(hopefully_vararg.children[0], Leaf)
             hopefully_vararg_name = hopefully_vararg.children[0].value
         else:
+            assert isinstance(hopefully_vararg, Leaf)
             hopefully_vararg_name = hopefully_vararg.value
         if hopefully_vararg_name != ast_args.vararg.arg:
             raise ValueError(f".pyi file expects *{ast_args.vararg.arg} in source")
@@ -792,9 +802,13 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
     if ast_args.kwarg:
         try:
             hopefully_dstar, hopefully_kwarg = pop_param(params)
+            if not hopefully_kwarg:
+                raise ValueError
             if hopefully_kwarg.type == syms.tname:
+                assert isinstance(hopefully_kwarg.children[0], Leaf)
                 hopefully_kwarg_name = hopefully_kwarg.children[0].value
             else:
+                assert isinstance(hopefully_kwarg, Leaf)
                 hopefully_kwarg_name = hopefully_kwarg.value
             if hopefully_dstar != _dstar or hopefully_kwarg_name != ast_args.kwarg.arg:
                 raise ValueError
@@ -820,7 +834,10 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
         for arg in typedargslist:
             # remove now spurious type comments
             arg.prefix = re.sub(
-                r'[\t ]*# type:[^\n]+\n', '\n', arg.prefix, re.MULTILINE,
+                r'[\t ]*# type:[^\n]+\n',
+                '\n',
+                arg.prefix,
+                re.MULTILINE,
             )
         if len(typedargslist) == 1:
             # don't pack a single argument to be consistent with how lib2to3
@@ -917,9 +934,10 @@ def parse_signature_type_comment(type_comment):
         raise ValueError(f"invalid function signature type comment: {type_comment!r}")
 
     assert isinstance(result, ast3.FunctionType)
-    argtypes = result.argtypes
-    if len(argtypes) == 1:
-        argtypes = argtypes[0]
+    if len(result.argtypes) == 1:
+        argtypes = result.argtypes[0]
+    else:
+        argtypes = result.argtypes
     return argtypes, result.returns
 
 
@@ -965,8 +983,10 @@ def copy_arguments_to_annotations(args, type_comment, *, is_method=False):
         # If there's just one value, only one of the loops and ifs below will
         # be populated. We ensure this with the expected/actual length check
         # above.
-        def next_value(_: int) -> ast3.AST:
-            return type_comment
+        _tc = type_comment
+
+        def next_value(index: int = 0) -> ast3.expr:
+            return _tc
 
     for arg in args.args[expected - actual:]:
         ensure_no_annotation(arg.annotation)
@@ -1078,14 +1098,16 @@ def gen_annotated_params(
 
         if expected_default is None and actual_default is not None:
             if not implicit_default or actual_default != _none:
+                param_s = minimize_whitespace(str(param))
                 raise ValueError(
                     f".pyi file does not specify default value for arg " +
-                    f"`{param.value}` but the source does"
+                    f"`{param_s}` but the source does"
                 )
 
         if expected_default is not None and actual_default is None:
+            param_s = minimize_whitespace(str(param))
             raise ValueError(
-                f"source file does not specify default value for arg `{param.value}` " +
+                f"source file does not specify default value for arg `{param_s}` " +
                 f"but the .pyi file does"
             )
 
@@ -1105,31 +1127,28 @@ def get_annotated_param(node, arg, *, missing_ok=False):
     if node.type == syms.tname:
         actual_ann = node.children[2]
         node = node.children[0]
-    if arg.arg != node.value:
+    if not isinstance(node, Leaf) or arg.arg != node.value:
         raise ValueError(
             f".pyi file expects argument {arg.arg!r} next but argument " +
-            f"{node.value!r} found in source"
-        )
-
-    if arg.annotation is None and actual_ann is None:
-        if missing_ok:
-            return new(node)
-
-        raise ValueError(
-            f".pyi file is missing annotation for {arg.arg!r} and source " +
-            f"doesn't provide it either"
+            f"{minimize_whitespace(str(node))!r} found in source"
         )
 
     if arg.annotation is None:
+        if actual_ann is None:
+            if missing_ok:
+                return new(node)
+
+            raise ValueError(
+                f".pyi file is missing annotation for {arg.arg!r} and source " +
+                f"doesn't provide it either"
+            )
+
         ann = new(actual_ann)
     else:
         ann = convert_annotation(arg.annotation)
         ann.prefix = ' '
 
-    if actual_ann is None:
-        actual_ann = ann
-
-    if ann != actual_ann:
+    if actual_ann is not None and actual_ann != ann:
         ann_str = minimize_whitespace(str(ann))
         actual_ann_str = minimize_whitespace(str(actual_ann))
         raise ValueError(
@@ -1173,6 +1192,7 @@ def get_offset_and_prefix(body, skip_assignments=False):
                 break
 
         elif child.type == token.INDENT:
+            assert isinstance(child, Leaf)
             prefix = child.value
         elif child.type != token.NEWLINE:
             break
