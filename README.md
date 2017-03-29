@@ -50,16 +50,16 @@ Things to be done:
 
 ## Known limitations
 
-* some forms of forward references in .pyi files cannot be applied
+* Some forms of forward references in .pyi files cannot be applied
   correctly in the source due to out-of-order definitions; modify your
-  .pyi files to use strings
-* line numbers in the annotated source will no longer match original
+  .pyi files to use strings.
+* Line numbers in the annotated source will no longer match original
   source code; this is because re-application of types requires copying
-  typing imports and alias definitions from the .pyi file
-* while formatting of the original source will be preserved, formatting
+  typing imports and alias definitions from the .pyi file.
+* While formatting of the original source will be preserved, formatting
   of the applied annotations might differ from the formatting in .pyi
-  files
-* the source where type annotations get re-applied cannot use the
+  files.
+* The source where type annotations get re-applied cannot use the
   legacy `print` statement; that wouldn't work at runtime.
 
 
