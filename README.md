@@ -50,9 +50,6 @@ Things to be done:
 
 ## Known limitations
 
-* Some forms of forward references in .pyi files cannot be applied
-  correctly in the source due to out-of-order definitions; modify your
-  .pyi files to use strings.
 * Line numbers in the annotated source will no longer match original
   source code; this is because re-application of types requires copying
   typing imports and alias definitions from the .pyi file.
@@ -66,6 +63,12 @@ Things to be done:
   never translated into class-level attribute annotations, so if that
   method is missing, the translation will fail.  Similarly, class-level
   attribute annotations are never applied to `__init__()` methods.
+* Forward references in .pyi files will only be properly resolved for
+  type aliases (by inserting them right before they're used in the
+  source).  Other forms of forward references will not work in the
+  source code due to out-of-order class and function definitions.
+  Modify your .pyi files to use strings.  `retype` will not automatically
+  discover failing forward references and stringify them.
 
 
 ## Tests
