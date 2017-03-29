@@ -28,11 +28,10 @@ Things to be done:
 * [x] reapply class-level field annotations
 * [x] reapply instance-level field annotations
 * [ ] add the --keep-byte-literals option for Mercurial
-* [ ] support type comments in .pyi files
+* [x] support type comments in .pyi files
 * [ ] support type ignore comments in .pyi files
 * [ ] add a --backward option to output type comments instead of annotations
 * [ ] handle if sys.version_info and sys.platform checks in stubs
-* [ ] warn about functions and classes with missing annotations
 
 
 ## Design principles

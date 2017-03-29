@@ -278,7 +278,7 @@ def _r_functiondef(fun, node):
                 raise ValueError(
                     f"Annotation problem in function {name.value!r}: " +
                     f"{lineno}:{column}: {ve}"
-                ) from None
+                )
             break
     else:
         raise ValueError(f"Function {name.value!r} not found in source.")
@@ -316,20 +316,21 @@ def _r_annassign(annassign, body):
             continue
 
         expr = maybe_expr.children
-        maybe_annotation = None
 
         if (
             expr[0].type in (token.NAME, syms.power) and
             minimize_whitespace(str(expr[0])) == name
         ):
             if expr[1].type == syms.annassign:
-                # variable already typed
-                maybe_annotation = expr[1].children[1]
+                # variable already typed, let's just ensure it's sane
                 if len(expr[1].children) > 2 and expr[1].children[2] != _eq:
                     raise NotImplementedError(
                         f"unexpected element after annotation: {str(expr[3])}"
                     )
-            elif expr[1] != _eq:
+                ensure_annotations_equal(name, annotation, expr[1].children[1])
+                break
+
+            if expr[1] != _eq:
                 # If it's not an assignment, we're ignoring it. It could be:
                 # - indexing
                 # - tuple unpacking
@@ -337,19 +338,22 @@ def _r_annassign(annassign, body):
                 # - etc. etc.
                 continue
 
-            if maybe_annotation is not None:
-                if annotation != maybe_annotation:
-                    expected_annotation = minimize_whitespace(str(annotation))
-                    actual_annotation = minimize_whitespace(str(maybe_annotation))
-                    raise ValueError(
-                        f"incompatible existing variable annotation for " +
-                        f"{name!r}. Expected: " +
-                        f"{expected_annotation!r}, actual: {actual_annotation!r}"
-                    )
-            else:
+            maybe_type_comment = _type_comment_re.match(child.children[1].prefix)
+            if maybe_type_comment:
+                # variable already typed by type comment, let's ensure it's sane...
+                type_comment = parse_type_comment(maybe_type_comment.group('type'))
+                actual_annotation = convert_annotation(type_comment)
+                ensure_annotations_equal(name, annotation, actual_annotation)
+                # ...and remove the redundant comment
+                child.children[1].prefix = maybe_type_comment.group('nl')
+
+            if len(expr[2:]) > 0 and expr[2:] != [_ellipsis]:
+                # copy the value unless it was an old-style variable type comment
+                # with no actual value (but just a ... placeholder)
                 annassign_node.children.append(new(_eq))
                 annassign_node.children.extend(new(elem) for elem in expr[2:])
-                maybe_expr.children = [expr[0], annassign_node]
+
+            maybe_expr.children = [expr[0], annassign_node]
 
             break
     else:
@@ -381,9 +385,25 @@ def _r_annassign(annassign, body):
 def _r_assign(assign, body):
     assert body.type in (syms.file_input, syms.suite)
 
-    if len(assign.targets) != 1 or not isinstance(assign.targets[0], ast3.Name):
-        # Type aliases cannot have multiple targets, and cannot be attributes.
-        # We're not interested in other assignments.
+    if len(assign.targets) != 1:
+        # Type aliases and old-style var type comments cannot have multiple
+        # targets.
+        return []
+
+    if assign.type_comment:
+        # old-style variable type comment, let's treat it exactly like
+        # a new-style annotated assignment
+        tc = parse_type_comment(assign.type_comment)
+        annassign = ast3.AnnAssign(
+            target=assign.targets[0],
+            annotation=tc,
+            value=assign.value,
+            simple=False,
+        )
+        return reapply(annassign, body)
+
+    if not isinstance(assign.targets[0], ast3.Name):
+        # Type aliases cannot be attributes, etc.
         return []
 
     name = assign.targets[0].id
@@ -833,12 +853,7 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
         typedargslist = typedargslist[1:]  # drop the initial comma
         for arg in typedargslist:
             # remove now spurious type comments
-            arg.prefix = re.sub(
-                r'[\t ]*# type:[^\n]+\n',
-                '\n',
-                arg.prefix,
-                re.MULTILINE,
-            )
+            arg.prefix = _type_comment_re.sub(r'\g<nl>', arg.prefix, re.MULTILINE)
         if len(typedargslist) == 1:
             # don't pack a single argument to be consistent with how lib2to3
             # parses existing code.
@@ -1035,6 +1050,16 @@ def ensure_no_annotation(ann):
     if ann:
         raise ValueError(
             f"using both a type annotation and a type comment is not allowed: {ann}"
+        )
+
+
+def ensure_annotations_equal(name, expected, actual):
+    if expected != actual:
+        expected_annotation = minimize_whitespace(str(expected))
+        actual_annotation = minimize_whitespace(str(actual))
+        raise ValueError(
+            f"incompatible existing variable annotation for {name!r}. " +
+            f"Expected: {expected_annotation!r}, actual: {actual_annotation!r}"
         )
 
 
@@ -1258,6 +1283,13 @@ _rarrow = Leaf(token.RARROW, '->', prefix=' ')
 _rpar = Leaf(token.RPAR, ')')
 _rsqb = Leaf(token.RSQB, ']')
 _star = Leaf(token.STAR, '*')
+_ellipsis = Node(syms.atom, children=[new(_dot), new(_dot), new(_dot)])
+
+_type_comment_re = re.compile(
+    r'[\t ]*# type: *(?P<type>[^ \t\n]+)[ \t]*(?P<nl>\n?)',
+    re.MULTILINE,
+)
+
 
 if __name__ == '__main__':
     main()
