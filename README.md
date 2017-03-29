@@ -29,7 +29,8 @@ Things to be done:
 * [x] reapply instance-level field annotations
 * [ ] add the --keep-byte-literals option for Mercurial
 * [x] support type comments in .pyi files
-* [ ] support type ignore comments in .pyi files
+* [ ] normalize remaining type comments in the source to annotations
+* [ ] add a --normalize-only option to skip application from .pyi files
 * [ ] add a --backward option to output type comments instead of annotations
 * [ ] handle if sys.version_info and sys.platform checks in stubs
 
