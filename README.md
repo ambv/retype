@@ -61,6 +61,11 @@ Things to be done:
   files.
 * The source where type annotations get re-applied cannot use the
   legacy `print` statement; that wouldn't work at runtime.
+* Class attribute annotations in `__init__()` methods are moved verbatim
+  to the respective `__init__()` method in the implementation.  They are
+  never translated into class-level attribute annotations, so if that
+  method is missing, the translation will fail.  Similarly, class-level
+  attribute annotations are never applied to `__init__()` methods.
 
 
 ## Tests
