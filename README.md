@@ -9,26 +9,35 @@ Re-apply type annotations from .pyi stubs to your codebase.
 When you run `retype`, it will look for .pyi files in the `types/`
 directory, and for each such file, it will re-apply typing annotations
 to respective source files found in the current working directory.
-The resulting combined sources are put in `typed-src/`.
+The resulting combined sources are put in `typed-src/`.  All those
+directories are customizable, see `--help`.
 
-All those directories are customizable, see `--help`.
+`retype` reapplies the type annotations using the Python 3 function and
+variable annotation syntax.
+
+It's smart enough to do the following:
+* reapply typing imports
+* reapply function argument annotations
+* reapply function return value annotations
+* reapply method argument and return value annotations
+* reapply function-level variable annotations
+* reapply module-level name annotations
+* reapply module-level type aliases
+* reapply class-level field annotations
+* reapply instance-level field annotations
+* validate existing source annotations against the .pyi file
+* validate source function signatures against the .pyi file
+* read function signature type comments in .pyi files
+* read variable type comments in .pyi files
+* consider existing source type comments as annotations
+* remove duplicate type comments from source when annotations are applied
 
 
-## This is a work in progress.
+## List of things to be done
 
 Things to be done:
 
-* [x] reapply typing imports
-* [x] reapply function argument annotations
-* [x] reapply function return value annotations
-* [x] reapply method argument and return value annotations
-* [x] reapply function-level variable annotations
-* [x] reapply module-level field annotations
-* [x] reapply module-level type aliases
-* [x] reapply class-level field annotations
-* [x] reapply instance-level field annotations
 * [ ] add the --keep-byte-literals option for Mercurial
-* [x] support type comments in .pyi files
 * [ ] normalize remaining type comments in the source to annotations
 * [ ] add a --normalize-only option to skip application from .pyi files
 * [ ] add a --backward option to output type comments instead of annotations
