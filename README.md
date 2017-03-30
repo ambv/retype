@@ -78,7 +78,16 @@ Things to be done:
   in the source code due to out-of-order class and function definitions.
   Modify your .pyi files to use strings.  `retype` will not
   automatically discover failing forward references and stringify them.
-
+* Local variable annotations present in the .pyi file are transferred to
+  the body level of the given function in the source.  In other words,
+  if the source defines a variable within a loop or a conditional
+  statement branch, `retype` will create an value-less variable
+  annotation at the beginning of the function.  Use a broad type and
+  constrain types in relevant code paths using `assert isinstance()`
+  checks.
+* Because of the above, existing source variable annotations and type
+  comments buried in conditionals and loops will not be deduplicated
+  (and `mypy` will complain that a name was already defined).
 
 ## Tests
 
