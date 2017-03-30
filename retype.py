@@ -136,6 +136,7 @@ def reapply_all(ast_node, lib2to3_node):
     late_processing = reapply(ast_node, lib2to3_node)
     for lazy_func in reversed(late_processing):
         lazy_func()
+    fix_remaining_type_comments(lib2to3_node)
 
 
 @singledispatch
@@ -702,6 +703,71 @@ def _dn_attribute(attr):
     return [serialize_attribute(attr)]
 
 
+def fix_remaining_type_comments(node):
+    """Converts type comments in `node` to proper annotated assignments."""
+    assert node.type == syms.file_input
+
+    last_n = None
+    for n in node.post_order():
+        if last_n is not None:
+            if n.type == token.NEWLINE and is_assignment(last_n):
+                fix_variable_annotation_type_comment(n, last_n)
+            elif n.type == syms.funcdef and last_n.type == syms.suite:
+                fix_signature_annotation_type_comment(n, last_n, offset=1)
+            elif n.type == syms.async_funcdef and last_n.type == syms.suite:
+                fix_signature_annotation_type_comment(n, last_n, offset=2)
+        last_n = n
+
+
+def fix_variable_annotation_type_comment(node, last):
+    m = _type_comment_re.match(node.prefix)
+    if not m:
+        return
+
+    type_comment = parse_type_comment(m.group('type'))
+    ann = convert_annotation(type_comment)
+    ann.prefix = " "
+    annassign_node = Node(syms.annassign, [new(_colon), ann])
+    expr = last.children
+    if len(expr[2:]) > 0 and expr[2:] != [_ellipsis]:
+        # with assignment
+        annassign_node.children.append(new(_eq))
+        annassign_node.children.extend(new(elem) for elem in expr[2:])
+    last.children = [expr[0], annassign_node]
+    node.prefix = m.group('nl')
+
+
+def fix_signature_annotation_type_comment(node, last, *, offset):
+    for ch in last.children:
+        if ch.type == token.INDENT:
+            break
+    else:
+        return
+
+    m = _type_comment_re.match(ch.prefix)
+    if not m:
+        return
+
+    parameters = node.children[offset + 1]
+    args_tc, returns_tc = parse_signature_type_comment(m.group('type'))
+    ast_args = parse_arguments(str(parameters))
+    # `is_method=True` below only means we allow for missing first annotation.
+    # It's not even worth checking at this point.
+    copy_arguments_to_annotations(ast_args, args_tc, is_method=True)
+    annotate_parameters(parameters, ast_args, is_method=True)
+    annotate_return(node.children, returns_tc, offset + 2)
+    remove_function_signature_type_comment(last)
+
+
+def is_assignment(node):
+    if node.type != syms.expr_stmt:
+        return False
+
+    expr = node.children
+    # The `bool()` below shuts up a "returning Any" warning from mypy.
+    return expr[0].type in (token.NAME, syms.power) and bool(expr[1] == _eq)
+
+
 def is_builtin_method_decorator(name):
     return name in {'classmethod', 'staticmethod'}
 
@@ -851,9 +917,6 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
 
     if typedargslist:
         typedargslist = typedargslist[1:]  # drop the initial comma
-        for arg in typedargslist:
-            # remove now spurious type comments
-            arg.prefix = _type_comment_re.sub(r'\g<nl>', arg.prefix, re.MULTILINE)
         if len(typedargslist) == 1:
             # don't pack a single argument to be consistent with how lib2to3
             # parses existing code.
@@ -865,6 +928,9 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
             body,
             parameters.children[-1],  # )
         ]
+        for arg in parameters.pre_order():
+            # remove now spurious type comments
+            arg.prefix = _type_comment_re.sub(r'\g<nl>', arg.prefix, re.MULTILINE)
     else:
         parameters.children = [
             parameters.children[0],  # (
@@ -965,6 +1031,25 @@ def parse_type_comment(type_comment):
 
     assert isinstance(result, ast3.Expression)
     return result.body
+
+
+def parse_arguments(arguments):
+    """parse_arguments('(a, b, *, c=False, **d)') -> ast3.arguments
+
+    Parse a string with function arguments into an AST node.
+    """
+    arguments = f"def f{arguments}: ..."
+    try:
+        result = ast3.parse(arguments, '<arguments>', 'exec')
+    except SyntaxError:
+        raise ValueError(f"invalid arguments: {arguments!r}") from None
+
+    assert isinstance(result, ast3.Module)
+    assert len(result.body) == 1
+    assert isinstance(result.body[0], ast3.FunctionDef)
+    args = result.body[0].args
+    copy_type_comments_to_annotations(args)
+    return args
 
 
 def copy_arguments_to_annotations(args, type_comment, *, is_method=False):
@@ -1286,10 +1371,9 @@ _star = Leaf(token.STAR, '*')
 _ellipsis = Node(syms.atom, children=[new(_dot), new(_dot), new(_dot)])
 
 _type_comment_re = re.compile(
-    r'[\t ]*# type: *(?P<type>[^ \t\n]+)[ \t]*(?P<nl>\n?)',
+    r'^[\t ]*# type: *(?P<type>[^\t\n]+)[ \t]*(?P<nl>\n?)$',
     re.MULTILINE,
 )
-
 
 if __name__ == '__main__':
     main()

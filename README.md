@@ -31,6 +31,7 @@ It's smart enough to do the following:
 * read variable type comments in .pyi files
 * consider existing source type comments as annotations
 * remove duplicate type comments from source when annotations are applied
+* normalize remaining type comments in the source to annotations
 
 
 ## List of things to be done
@@ -38,7 +39,6 @@ It's smart enough to do the following:
 Things to be done:
 
 * [ ] add the --keep-byte-literals option for Mercurial
-* [ ] normalize remaining type comments in the source to annotations
 * [ ] add a --normalize-only option to skip application from .pyi files
 * [ ] add a --backward option to output type comments instead of annotations
 * [ ] handle if sys.version_info and sys.platform checks in stubs

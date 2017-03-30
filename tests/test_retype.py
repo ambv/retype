@@ -2072,5 +2072,138 @@ class PrintStmtTestCase(RetypeTestCase):
         )
 
 
+class PostProcessTestCase(RetypeTestCase):
+    def test_straddling_variable_comments(self):
+        pyi_txt = """
+        def f(s: str) -> str: ...
+
+        class C:
+            def g(self) -> Iterator[Dict[int, str]]: ...
+        """
+        src_txt = """
+        import sys
+
+        def f(s):
+            if s:
+                l = []  # type: List[str]
+                for elem in l:
+                    s += elem
+            return s
+
+        class C:
+            def g(self):
+                for i in range(10):
+                    result = {}  # type: Dict[int, str]
+                    result[i] = f(str(i))
+                    yield result
+        """
+        expected_txt = """
+        import sys
+
+        def f(s: str) -> str:
+            if s:
+                l: List[str] = []
+                for elem in l:
+                    s += elem
+            return s
+
+        class C:
+            def g(self) -> Iterator[Dict[int, str]]:
+                for i in range(10):
+                    result: Dict[int, str] = {}
+                    result[i] = f(str(i))
+                    yield result
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_straddling_function_signature_type_comments1(self):
+        pyi_txt = """
+        class C:
+            def f(self) -> Callable[[int, int], str]: ...
+        """
+        src_txt = """
+        import sys
+
+        class C:
+            def f(self):
+                def g(row, column):
+                    # type: (int1, int2) -> str
+                    return self.chessboard[row][column]
+                return g
+        """
+        expected_txt = """
+        import sys
+
+        class C:
+            def f(self) -> Callable[[int, int], str]:
+                def g(row: int1, column: int2) -> str:
+                    return self.chessboard[row][column]
+                return g
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_straddling_function_signature_type_comments2(self):
+        pyi_txt = """
+        class C:
+            def f(self) -> Callable[[int, int], str]: ...
+        """
+        src_txt = """
+        import sys
+
+        class C:
+            def f(self):
+                @some_decorator
+                def g(row, column):
+                    # type: (int1, int2) -> str
+                    return self.chessboard[row][column]
+                return g
+        """
+        expected_txt = """
+        import sys
+
+        class C:
+            def f(self) -> Callable[[int, int], str]:
+                @some_decorator
+                def g(row: int1, column: int2) -> str:
+                    return self.chessboard[row][column]
+                return g
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_straddling_function_signature_type_comments3(self):
+        pyi_txt = """
+        class C:
+            def f(self) -> Callable[[int, int], str]: ...
+        """
+        src_txt = """
+        import sys
+
+        class C:
+            def f(self):
+                def g(row, # type: int1
+                      column, # type: int2
+                ):
+                    # type: (...) -> str
+                    return self.chessboard[row][column]
+                return g
+        """
+        expected_txt = """
+        import sys
+
+        class C:
+            def f(self) -> Callable[[int, int], str]:
+                def g(row: int1,
+                      column: int2
+                ) -> str:
+                    return self.chessboard[row][column]
+                return g
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+
 if __name__ == '__main__':
     main()
