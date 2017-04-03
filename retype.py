@@ -29,6 +29,7 @@ Directory = partial(
 
 @click.command()
 @click.option(
+    '-s',
     '--src-dir',
     type=Directory(),
     default='.',
@@ -36,6 +37,7 @@ Directory = partial(
     show_default=True
 )
 @click.option(
+    '-p',
     '--pyi-dir',
     type=Directory(),
     default='types',
@@ -43,6 +45,7 @@ Directory = partial(
     show_default=True,
 )
 @click.option(
+    '-t',
     '--target-dir',
     type=Directory(exists=False, writable=True),
     default='typed-src',
