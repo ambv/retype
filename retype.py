@@ -29,14 +29,6 @@ Directory = partial(
 
 @click.command()
 @click.option(
-    '-s',
-    '--src-dir',
-    type=Directory(),
-    default='.',
-    help='Where to find sources.',
-    show_default=True
-)
-@click.option(
     '-p',
     '--pyi-dir',
     type=Directory(),
@@ -52,17 +44,25 @@ Directory = partial(
     help='Where to write annotated sources.',
     show_default=True,
 )
+@click.argument(
+    'src',
+    nargs=-1,
+    type=Directory(),
+)
 @click.version_option(version=__version__)
-def main(src_dir, pyi_dir, target_dir):
+def main(src, pyi_dir, target_dir):
     """Re-apply type annotations from .pyi stubs to your codebase."""
     returncode = 0
-    for file, error in retype_path(
-        Path(pyi_dir),
-        srcs=Path(src_dir),
-        targets=Path(target_dir),
-    ):
-        print(f'error: {file}: {error}', file=sys.stderr)
-        returncode += 1
+    for src_entry in src:
+        for file, error in retype_path(
+            Path(pyi_dir),
+            srcs=Path(src_entry),
+            targets=Path(target_dir),
+        ):
+            print(f'error: {file}: {error}', file=sys.stderr)
+            returncode += 1
+    if not src:
+        print('warning: no sources given', file=sys.stderr)
 
     # According to http://tldp.org/LDP/abs/html/index.html starting with 126
     # we have special returncodes.
