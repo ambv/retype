@@ -44,13 +44,19 @@ Directory = partial(
     help='Where to write annotated sources.',
     show_default=True,
 )
+@click.option(
+    '-q',
+    '--quiet',
+    is_flag=True,
+    help="Don't emit warnings, just errors.",
+)
 @click.argument(
     'src',
     nargs=-1,
     type=Directory(file_okay=True),
 )
 @click.version_option(version=__version__)
-def main(src, pyi_dir, target_dir):
+def main(src, pyi_dir, target_dir, quiet):
     """Re-apply type annotations from .pyi stubs to your codebase."""
     returncode = 0
     for src_entry in src:
@@ -59,10 +65,11 @@ def main(src, pyi_dir, target_dir):
             pyi_dir=Path(pyi_dir),
             targets=Path(target_dir),
             src_explicitly_given=True,
+            quiet=quiet,
         ):
             print(f'error: {file}: {error}', file=sys.stderr)
             returncode += 1
-    if not src:
+    if not src and not quiet:
         print('warning: no sources given', file=sys.stderr)
 
     # According to http://tldp.org/LDP/abs/html/index.html starting with 126
@@ -70,21 +77,23 @@ def main(src, pyi_dir, target_dir):
     sys.exit(min(returncode, 125))
 
 
-def retype_path(src, pyi_dir, targets, *, src_explicitly_given=False):
+def retype_path(src, pyi_dir, targets, *, src_explicitly_given=False, quiet=False):
     """Recursively retype files or directories given. Generate errors."""
     if src.is_dir():
         for child in src.iterdir():
             if child == pyi_dir or child == targets:
                 continue
-            yield from retype_path(child, pyi_dir / src.name, targets / src.name)
+            yield from retype_path(
+                child, pyi_dir / src.name, targets / src.name, quiet=quiet
+            )
     elif src.suffix == '.py' or src_explicitly_given:
         try:
-            retype_file(src, pyi_dir, targets)
+            retype_file(src, pyi_dir, targets, quiet=quiet)
         except Exception as e:
             yield (src, str(e))
 
 
-def retype_file(src, pyi_dir, targets):
+def retype_file(src, pyi_dir, targets, *, quiet=False):
     """Retype `src`, finding types in `pyi_dir`. Save in `targets`.
 
     The file should remain formatted exactly as it was before, save for:
@@ -101,10 +110,11 @@ def retype_file(src, pyi_dir, targets):
         with open((pyi_dir / src.name).with_suffix('.pyi')) as pyi_file:
             pyi_txt = pyi_file.read()
     except FileNotFoundError:
-        print(
-            f'warning: .pyi file for source {src} not found in {pyi_dir}',
-            file=sys.stderr,
-        )
+        if not quiet:
+            print(
+                f'warning: .pyi file for source {src} not found in {pyi_dir}',
+                file=sys.stderr,
+            )
     else:
         pyi_ast = ast3.parse(pyi_txt)
         assert isinstance(pyi_ast, ast3.Module)
