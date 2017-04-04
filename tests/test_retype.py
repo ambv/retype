@@ -5,7 +5,12 @@ from unittest import main, TestCase
 
 from typed_ast import ast3
 
-from retype import reapply_all, lib2to3_parse, serialize_attribute
+from retype import (
+    fix_remaining_type_comments,
+    lib2to3_parse,
+    reapply_all,
+    serialize_attribute,
+)
 
 
 class RetypeTestCase(TestCase):
@@ -17,6 +22,7 @@ class RetypeTestCase(TestCase):
         expected = lib2to3_parse(dedent(expected_txt))
         assert isinstance(pyi, ast3.Module)
         reapply_all(pyi.body, src)
+        fix_remaining_type_comments(src)
         self.longMessage = False
         self.assertEqual(expected, src, f"\n{expected!r} != \n{src!r}")
 
@@ -26,6 +32,7 @@ class RetypeTestCase(TestCase):
         expected = lib2to3_parse(dedent(expected_txt))
         assert isinstance(pyi, ast3.Module)
         reapply_all(pyi.body, src)
+        fix_remaining_type_comments(src)
         self.longMessage = False
         self.assertEqual(
             str(expected),
@@ -39,6 +46,7 @@ class RetypeTestCase(TestCase):
             src = lib2to3_parse(dedent(src_txt))
             assert isinstance(pyi, ast3.Module)
             reapply_all(pyi.body, src)
+            fix_remaining_type_comments(src)
         return ctx.exception
 
 
