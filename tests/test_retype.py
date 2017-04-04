@@ -15,6 +15,7 @@ class RetypeTestCase(TestCase):
         pyi = ast3.parse(dedent(pyi_txt))
         src = lib2to3_parse(dedent(src_txt))
         expected = lib2to3_parse(dedent(expected_txt))
+        assert isinstance(pyi, ast3.Module)
         reapply_all(pyi.body, src)
         self.longMessage = False
         self.assertEqual(expected, src, f"\n{expected!r} != \n{src!r}")
@@ -23,6 +24,7 @@ class RetypeTestCase(TestCase):
         pyi = ast3.parse(dedent(pyi_txt))
         src = lib2to3_parse(dedent(src_txt))
         expected = lib2to3_parse(dedent(expected_txt))
+        assert isinstance(pyi, ast3.Module)
         reapply_all(pyi.body, src)
         self.longMessage = False
         self.assertEqual(
@@ -35,6 +37,7 @@ class RetypeTestCase(TestCase):
         with self.assertRaises(expected_exception) as ctx:
             pyi = ast3.parse(dedent(pyi_txt))
             src = lib2to3_parse(dedent(src_txt))
+            assert isinstance(pyi, ast3.Module)
             reapply_all(pyi.body, src)
         return ctx.exception
 
@@ -42,94 +45,94 @@ class RetypeTestCase(TestCase):
 class ImportTestCase(RetypeTestCase):
     IMPORT = "import x"
 
-    def _test_matched(self, matched, expected=None):
+    def _test_matched(self, matched: str, expected: str = None) -> None:
         pyi = f"{self.IMPORT}\n"
         src = f"{matched}\n"
         expected = f"{expected if expected is not None else matched}\n"
         self.assertReapply(pyi, src, expected)
 
-    def _test_unmatched(self, unmatched):
+    def _test_unmatched(self, unmatched: str) -> None:
         pyi = f"{self.IMPORT}\n"
         src = f"{unmatched}\n"
         expected = f"{unmatched}\n{self.IMPORT}\n"
         self.assertReapply(pyi, src, expected)
 
-    def test_equal(self):
+    def test_equal(self) -> None:
         self._test_matched(self.IMPORT)
 
-    def test_src_empty(self):
+    def test_src_empty(self) -> None:
         self._test_matched("", self.IMPORT)
 
-    def test_matched1(self):
+    def test_matched1(self) -> None:
         self._test_matched("import x as x")
 
-    def test_matched2(self):
+    def test_matched2(self) -> None:
         self._test_matched("import z, y, x")
 
-    def test_matched3(self):
+    def test_matched3(self) -> None:
         self._test_matched("import z as y, x")
 
-    def test_unmatched1(self):
+    def test_unmatched1(self) -> None:
         self._test_unmatched("import y as x")
 
-    def test_unmatched2(self):
+    def test_unmatched2(self) -> None:
         self._test_unmatched("import x.y")
 
-    def test_unmatched3(self):
+    def test_unmatched3(self) -> None:
         self._test_unmatched("import x.y as x")
 
-    def test_unmatched4(self):
+    def test_unmatched4(self) -> None:
         self._test_unmatched("from x import x")
 
-    def test_unmatched5(self):
+    def test_unmatched5(self) -> None:
         self._test_unmatched("from y import x")
 
-    def test_unmatched6(self):
+    def test_unmatched6(self) -> None:
         self._test_unmatched("from . import x")
 
-    def test_unmatched7(self):
+    def test_unmatched7(self) -> None:
         self._test_unmatched("from .x import x")
 
 
 class FromImportTestCase(ImportTestCase):
     IMPORT = "from y import x"
 
-    def test_matched1(self):
+    def test_matched1(self) -> None:
         self._test_matched("from y import x as x")
 
-    def test_matched2(self):
+    def test_matched2(self) -> None:
         self._test_matched("from y import z, y, x")
 
-    def test_matched3(self):
+    def test_matched3(self) -> None:
         self._test_matched("from y import z as y, x")
 
-    def test_unmatched1(self):
+    def test_unmatched1(self) -> None:
         self._test_unmatched("from y import y as x")
 
-    def test_unmatched2(self):
+    def test_unmatched2(self) -> None:
         self._test_unmatched("from y import x as y")
 
-    def test_unmatched3(self):
+    def test_unmatched3(self) -> None:
         self._test_unmatched("from .y import x")
 
-    def test_unmatched4(self):
+    def test_unmatched4(self) -> None:
         self._test_unmatched("import y.x")
 
-    def test_unmatched5(self):
+    def test_unmatched5(self) -> None:
         self._test_unmatched("import y")
 
-    def test_unmatched6(self):
+    def test_unmatched6(self) -> None:
         self._test_unmatched("from . import x")
 
-    def test_unmatched7(self):
+    def test_unmatched7(self) -> None:
         self._test_unmatched("from .y import x")
 
-    def test_unmatched8(self):
+    def test_unmatched8(self) -> None:
         self._test_unmatched("import x")
 
 
 class FunctionReturnTestCase(RetypeTestCase):
-    def test_missing_return_value_both(self):
+    def test_missing_return_value_both(self) -> None:
         pyi_txt = "def fun(): ...\n"
         src_txt = "def fun(): ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
@@ -139,42 +142,42 @@ class FunctionReturnTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_missing_return_value_pyi(self):
+    def test_missing_return_value_pyi(self) -> None:
         pyi_txt = "def fun(): ...\n"
         src_txt = "def fun() -> None: ...\n"
         expected_txt = "def fun() -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_missing_return_value_src(self):
+    def test_missing_return_value_src(self) -> None:
         pyi_txt = "def fun() -> None: ...\n"
         src_txt = "def fun(): ...\n"
         expected_txt = "def fun() -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_return_value(self):
+    def test_complex_return_value(self) -> None:
         pyi_txt = "def fun() -> List[Tuple[int, int]]: ...\n"
         src_txt = "def fun(): ...\n"
         expected_txt = "def fun() -> List[Tuple[int, int]]: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_return_value2(self):
+    def test_complex_return_value2(self) -> None:
         pyi_txt = "def fun() -> List[Tuple[Callable[[], Any], ...]]: ...\n"
         src_txt = "def fun(): ...\n"
         expected_txt = "def fun() -> List[Tuple[Callable[[], Any], ...]]: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_return_value3(self):
+    def test_complex_return_value3(self) -> None:
         pyi_txt = "def fun() -> List[Callable[[str, int, 'Custom'], Any]]: ...\n"
         src_txt = "def fun(): ...\n"
         expected_txt = "def fun() -> List[Callable[[str, int, 'Custom'], Any]]: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_mismatched_return_value(self):
+    def test_mismatched_return_value(self) -> None:
         pyi_txt = "def fun() -> List[Tuple[int, int]]: ...\n"
         src_txt = "def fun() -> List[int]: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
@@ -184,7 +187,7 @@ class FunctionReturnTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_complex_return_value_type_comment(self):
+    def test_complex_return_value_type_comment(self) -> None:
         pyi_txt = """
         def fun():
             # type: () -> List[Callable[[str, int, 'Custom'], Any]]
@@ -201,7 +204,7 @@ class FunctionReturnTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_return_value_spurious_type_comment(self):
+    def test_complex_return_value_spurious_type_comment(self) -> None:
         pyi_txt = """
         def fun():
             # type: () -> List[Callable[[str, int, 'Custom'], Any]]
@@ -221,7 +224,7 @@ class FunctionReturnTestCase(RetypeTestCase):
 
 
 class FunctionArgumentTestCase(RetypeTestCase):
-    def test_missing_ann_both(self):
+    def test_missing_ann_both(self) -> None:
         pyi_txt = "def fun(a1) -> None: ...\n"
         src_txt = "def fun(a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
@@ -231,7 +234,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_missing_arg(self):
+    def test_missing_arg(self) -> None:
         pyi_txt = "def fun(a1) -> None: ...\n"
         src_txt = "def fun(a2) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
@@ -241,7 +244,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_missing_arg2(self):
+    def test_missing_arg2(self) -> None:
         pyi_txt = "def fun(a1) -> None: ...\n"
         src_txt = "def fun(*, a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
@@ -251,7 +254,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_missing_arg_kwonly(self):
+    def test_missing_arg_kwonly(self) -> None:
         pyi_txt = "def fun(*, a1) -> None: ...\n"
         src_txt = "def fun(a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
@@ -261,7 +264,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_extra_arg1(self):
+    def test_extra_arg1(self) -> None:
         pyi_txt = "def fun() -> None: ...\n"
         src_txt = "def fun(a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
@@ -271,7 +274,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_extra_arg2(self):
+    def test_extra_arg2(self) -> None:
         pyi_txt = "def fun() -> None: ...\n"
         src_txt = "def fun(a1=None) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
@@ -281,7 +284,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_extra_arg_kwonly(self):
+    def test_extra_arg_kwonly(self) -> None:
         pyi_txt = "def fun() -> None: ...\n"
         src_txt = "def fun(*, a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
@@ -291,7 +294,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_missing_default_arg_src(self):
+    def test_missing_default_arg_src(self) -> None:
         pyi_txt = "def fun(a1=None) -> None: ...\n"
         src_txt = "def fun(a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
@@ -302,7 +305,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_missing_default_arg_pyi(self):
+    def test_missing_default_arg_pyi(self) -> None:
         pyi_txt = "def fun(a1) -> None: ...\n"
         src_txt = "def fun(a1=None) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
@@ -313,56 +316,56 @@ class FunctionArgumentTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_missing_ann_pyi(self):
+    def test_missing_ann_pyi(self) -> None:
         pyi_txt = "def fun(a1) -> None: ...\n"
         src_txt = "def fun(a1: str) -> None: ...\n"
         expected_txt = "def fun(a1: str) -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_missing_ann_src(self):
+    def test_missing_ann_src(self) -> None:
         pyi_txt = "def fun(a1: str) -> None: ...\n"
         src_txt = "def fun(a1) -> None: ...\n"
         expected_txt = "def fun(a1: str) -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_no_args(self):
+    def test_no_args(self) -> None:
         pyi_txt = "def fun() -> None: ...\n"
         src_txt = "def fun() -> None: ...\n"
         expected_txt = "def fun() -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_ann(self):
+    def test_complex_ann(self) -> None:
         pyi_txt = "def fun(a1: List[Tuple[int, int]]) -> None: ...\n"
         src_txt = "def fun(a1) -> None: ...\n"
         expected_txt = "def fun(a1: List[Tuple[int, int]]) -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_ann_with_default(self):
+    def test_complex_ann_with_default(self) -> None:
         pyi_txt = "def fun(a1: List[Tuple[int, int]] = None) -> None: ...\n"
         src_txt = "def fun(a1=None) -> None: ...\n"
         expected_txt = "def fun(a1: List[Tuple[int, int]] = None) -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_sig1(self):
+    def test_complex_sig1(self) -> None:
         pyi_txt = "def fun(a1: str, *args: str, kwonly1: int, **kwargs) -> None: ...\n"
         src_txt = "def fun(a1, *args, kwonly1=None, **kwargs) -> None: ...\n"
         expected_txt = "def fun(a1: str, *args: str, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_sig2(self):
+    def test_complex_sig2(self) -> None:
         pyi_txt = "def fun(a1: str, *, kwonly1: int, **kwargs) -> None: ...\n"
         src_txt = "def fun(a1, *, kwonly1=None, **kwargs) -> None: ...\n"
         expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_sig1_type_comment(self):
+    def test_complex_sig1_type_comment(self) -> None:
         pyi_txt = """
         def fun(a1, *args, kwonly1, **kwargs):
             # type: (str, *str, int, **Any) -> None
@@ -373,7 +376,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_sig2_type_comment(self):
+    def test_complex_sig2_type_comment(self) -> None:
         pyi_txt = """
         def fun(a1, *, kwonly1, **kwargs):
             # type: (str, int, **Any) -> None
@@ -384,7 +387,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_sig3_type_comment(self):
+    def test_complex_sig3_type_comment(self) -> None:
         pyi_txt = """
         def fun(a1):
             # type: (Union[str, bytes]) -> None
@@ -395,7 +398,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_sig4_type_comment(self):
+    def test_complex_sig4_type_comment(self) -> None:
         pyi_txt = """
         def fun(
             a1,  # type: str
@@ -411,7 +414,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_sig4_spurious_type_comment(self):
+    def test_complex_sig4_spurious_type_comment(self) -> None:
         pyi_txt = """
         def fun(
             a1,  # type: str
@@ -443,7 +446,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
 
 
 class FunctionVariableTestCase(RetypeTestCase):
-    def test_basic(self):
+    def test_basic(self) -> None:
         pyi_txt = """
         def fun() -> None:
             name: str
@@ -467,7 +470,7 @@ class FunctionVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_no_value(self):
+    def test_no_value(self) -> None:
         pyi_txt = """
         def fun() -> None:
             name: str
@@ -491,7 +494,7 @@ class FunctionVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_default_type(self):
+    def test_default_type(self) -> None:
         pyi_txt = """
         def fun() -> None:
             name: str
@@ -517,7 +520,7 @@ class FunctionVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_type_mismatch(self):
+    def test_type_mismatch(self) -> None:
         pyi_txt = """
         def fun() -> None:
             name: str
@@ -538,7 +541,7 @@ class FunctionVariableTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_complex(self):
+    def test_complex(self) -> None:
         pyi_txt = """
         def fun() -> None:
             name: str
@@ -569,7 +572,7 @@ class FunctionVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_type(self):
+    def test_complex_type(self) -> None:
         pyi_txt = """
         def fun() -> None:
             many_things: Union[List[int], str, 'Custom', Tuple[int, ...]]
@@ -593,7 +596,7 @@ class FunctionVariableTestCase(RetypeTestCase):
 
 
 class FunctionVariableTypeCommentTestCase(RetypeTestCase):
-    def test_basic(self):
+    def test_basic(self) -> None:
         pyi_txt = """
         def fun() -> None:
             name = ...  # type: str
@@ -617,7 +620,7 @@ class FunctionVariableTypeCommentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_no_value(self):
+    def test_no_value(self) -> None:
         pyi_txt = """
         def fun() -> None:
             name = ...  # type: str
@@ -641,7 +644,7 @@ class FunctionVariableTypeCommentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_no_value_type_comment(self):
+    def test_no_value_type_comment(self) -> None:
         pyi_txt = """
         def fun() -> None:
             name = ...  # type: str
@@ -665,7 +668,7 @@ class FunctionVariableTypeCommentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_default_type(self):
+    def test_default_type(self) -> None:
         pyi_txt = """
         def fun() -> None:
             name = ...  # type: str
@@ -691,7 +694,7 @@ class FunctionVariableTypeCommentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_type_mismatch(self):
+    def test_type_mismatch(self) -> None:
         pyi_txt = """
         def fun() -> None:
             name = ...  # type: str
@@ -712,7 +715,7 @@ class FunctionVariableTypeCommentTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_complex(self):
+    def test_complex(self) -> None:
         pyi_txt = """
         def fun() -> None:
             name = ...  # type: str
@@ -743,7 +746,7 @@ class FunctionVariableTypeCommentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_type(self):
+    def test_complex_type(self) -> None:
         pyi_txt = """
         def fun() -> None:
             many_things = ...  # type: Union[List[int], str, 'Custom', Tuple[int, ...]]
@@ -767,7 +770,7 @@ class FunctionVariableTypeCommentTestCase(RetypeTestCase):
 
 
 class MethodTestCase(RetypeTestCase):
-    def test_basic(self):
+    def test_basic(self) -> None:
         pyi_txt = """
             class C:
                 def __init__(self, a1: str, *args: str, kwonly1: int) -> None: ...
@@ -784,7 +787,7 @@ class MethodTestCase(RetypeTestCase):
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
 
-    def test_two_classes(self):
+    def test_two_classes(self) -> None:
         pyi_txt = """
             class C:
                 def __init__(self, a1: str, *args: str, kwonly1: int) -> None: ...
@@ -811,7 +814,7 @@ class MethodTestCase(RetypeTestCase):
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
 
-    def test_function(self):
+    def test_function(self) -> None:
         pyi_txt = """
             class C:
                 def method(self, a1: str, *args: str, kwonly1: int) -> None: ...
@@ -834,7 +837,7 @@ class MethodTestCase(RetypeTestCase):
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
 
-    def test_missing_class(self):
+    def test_missing_class(self) -> None:
         pyi_txt = """
             class C:
                 def method(self, a1: str, *args: str, kwonly1: int) -> None: ...
@@ -849,7 +852,7 @@ class MethodTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_staticmethod(self):
+    def test_staticmethod(self) -> None:
         pyi_txt = """
             class C:
                 @yeah.what.aboutThis()
@@ -871,7 +874,7 @@ class MethodTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_decorator_mismatch(self):
+    def test_decorator_mismatch(self) -> None:
         pyi_txt = """
             class C:
                 @yeah.what.aboutThis()
@@ -891,7 +894,7 @@ class MethodTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_decorator_mismatch2(self):
+    def test_decorator_mismatch2(self) -> None:
         pyi_txt = """
             class C:
                 @staticmethod
@@ -910,7 +913,7 @@ class MethodTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_decorator_mismatch3(self):
+    def test_decorator_mismatch3(self) -> None:
         pyi_txt = """
             class C:
                 @this.isnt.a.staticmethod
@@ -929,7 +932,7 @@ class MethodTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_complex_sig1_type_comment(self):
+    def test_complex_sig1_type_comment(self) -> None:
         pyi_txt = """
         class C:
             @staticmethod
@@ -952,7 +955,7 @@ class MethodTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_sig2_type_comment(self):
+    def test_complex_sig2_type_comment(self) -> None:
         pyi_txt = """
         class C:
             def fun(self, a1, *, kwonly1, **kwargs):
@@ -972,7 +975,7 @@ class MethodTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_sig3_type_comment(self):
+    def test_complex_sig3_type_comment(self) -> None:
         pyi_txt = """
         class C:
             @staticmethod
@@ -995,7 +998,7 @@ class MethodTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_sig4_type_comment(self):
+    def test_complex_sig4_type_comment(self) -> None:
         pyi_txt = """
         class C:
             @classmethod
@@ -1018,7 +1021,7 @@ class MethodTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_sig5_type_comment(self):
+    def test_complex_sig5_type_comment(self) -> None:
         pyi_txt = """
         class C:
             @classmethod
@@ -1043,7 +1046,7 @@ class MethodTestCase(RetypeTestCase):
 
 
 class MethodVariableTestCase(RetypeTestCase):
-    def test_basic(self):
+    def test_basic(self) -> None:
         pyi_txt = """
         class C:
             def fun(self) -> None:
@@ -1073,7 +1076,7 @@ class MethodVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_no_value(self):
+    def test_no_value(self) -> None:
         pyi_txt = """
         class C:
             def fun(self) -> None:
@@ -1100,7 +1103,7 @@ class MethodVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_default_type(self):
+    def test_default_type(self) -> None:
         pyi_txt = """
         class C:
             def fun(self) -> None:
@@ -1129,7 +1132,7 @@ class MethodVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_type_mismatch(self):
+    def test_type_mismatch(self) -> None:
         pyi_txt = """
         class C:
             def fun(self) -> None:
@@ -1152,7 +1155,7 @@ class MethodVariableTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_complex(self):
+    def test_complex(self) -> None:
         pyi_txt = """
         class C:
             def fun(self) -> None:
@@ -1188,7 +1191,7 @@ class MethodVariableTestCase(RetypeTestCase):
 
 
 class MethodVariableTypeCommentTestCase(RetypeTestCase):
-    def test_basic(self):
+    def test_basic(self) -> None:
         pyi_txt = """
         class C:
             def fun(self) -> None:
@@ -1218,7 +1221,7 @@ class MethodVariableTypeCommentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_no_value(self):
+    def test_no_value(self) -> None:
         pyi_txt = """
         class C:
             def fun(self) -> None:
@@ -1245,7 +1248,7 @@ class MethodVariableTypeCommentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_no_value_type_comment(self):
+    def test_no_value_type_comment(self) -> None:
         pyi_txt = """
         class C:
             def fun(self) -> None:
@@ -1272,7 +1275,7 @@ class MethodVariableTypeCommentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_default_type(self):
+    def test_default_type(self) -> None:
         pyi_txt = """
         class C:
             def fun(self) -> None:
@@ -1301,7 +1304,7 @@ class MethodVariableTypeCommentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_type_mismatch(self):
+    def test_type_mismatch(self) -> None:
         pyi_txt = """
         class C:
             def fun(self) -> None:
@@ -1324,7 +1327,7 @@ class MethodVariableTypeCommentTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_complex(self):
+    def test_complex(self) -> None:
         pyi_txt = """
         class C:
             def fun(self) -> None:
@@ -1360,7 +1363,7 @@ class MethodVariableTypeCommentTestCase(RetypeTestCase):
 
 
 class ModuleLevelVariableTestCase(RetypeTestCase):
-    def test_basic(self):
+    def test_basic(self) -> None:
         pyi_txt = """
         name: str
         """
@@ -1381,7 +1384,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_no_value(self):
+    def test_no_value(self) -> None:
         pyi_txt = """
         name: str
         """
@@ -1402,7 +1405,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_default_type(self):
+    def test_default_type(self) -> None:
         pyi_txt = """
         name: str
         """
@@ -1425,7 +1428,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_type_mismatch(self):
+    def test_type_mismatch(self) -> None:
         pyi_txt = """
         name: str
         """
@@ -1443,7 +1446,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_complex(self):
+    def test_complex(self) -> None:
         pyi_txt = """
         name: str
         age: int
@@ -1471,7 +1474,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_complex_with_imports(self):
+    def test_complex_with_imports(self) -> None:
         pyi_txt = """
         from typing import Optional
 
@@ -1507,7 +1510,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_alias_basic(self):
+    def test_alias_basic(self) -> None:
         pyi_txt = """
         from typing import List, Optional
 
@@ -1551,7 +1554,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_alias_typevar(self):
+    def test_alias_typevar(self) -> None:
         pyi_txt = """
         from typing import TypeVar
 
@@ -1589,7 +1592,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_alias_typevar_typing(self):
+    def test_alias_typevar_typing(self) -> None:
         pyi_txt = """
         import typing.foo.bar
 
@@ -1622,7 +1625,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         """
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_alias_many(self):
+    def test_alias_many(self) -> None:
         pyi_txt = """
         from typing import TypeVar
 
@@ -1681,7 +1684,7 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
 
 
 class ClassVariableTestCase(RetypeTestCase):
-    def test_basic(self):
+    def test_basic(self) -> None:
         pyi_txt = """
         class C:
             name: str
@@ -1705,7 +1708,7 @@ class ClassVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_no_value(self):
+    def test_no_value(self) -> None:
         pyi_txt = """
         class C:
             name: str
@@ -1729,7 +1732,7 @@ class ClassVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_default_type(self):
+    def test_default_type(self) -> None:
         pyi_txt = """
         class C:
             name: str
@@ -1755,7 +1758,7 @@ class ClassVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_type_mismatch(self):
+    def test_type_mismatch(self) -> None:
         pyi_txt = """
         class C:
             name: str
@@ -1775,7 +1778,7 @@ class ClassVariableTestCase(RetypeTestCase):
             str(exception),
         )
 
-    def test_complex(self):
+    def test_complex(self) -> None:
         pyi_txt = """
         class C:
             name: str
@@ -1806,7 +1809,7 @@ class ClassVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_instance_fields_no_assignment(self):
+    def test_instance_fields_no_assignment(self) -> None:
         pyi_txt = """
             class C:
                 def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
@@ -1851,7 +1854,7 @@ class ClassVariableTestCase(RetypeTestCase):
         """
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_instance_fields_no_assignment_no_docstring(self):
+    def test_instance_fields_no_assignment_no_docstring(self) -> None:
         pyi_txt = """
             class C:
                 def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
@@ -1892,7 +1895,7 @@ class ClassVariableTestCase(RetypeTestCase):
         """
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_instance_fields_no_assignment_docstring(self):
+    def test_instance_fields_no_assignment_docstring(self) -> None:
         pyi_txt = """
             class C:
                 def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
@@ -1937,7 +1940,7 @@ class ClassVariableTestCase(RetypeTestCase):
         """
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_instance_fields_assignment_docstring(self):
+    def test_instance_fields_assignment_docstring(self) -> None:
         pyi_txt = """
             class C:
                 def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
@@ -1988,7 +1991,7 @@ class ClassVariableTestCase(RetypeTestCase):
         """
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_instance_fields_assignment_no_docstring(self):
+    def test_instance_fields_assignment_no_docstring(self) -> None:
         pyi_txt = """
             class C:
                 def __init__(self, a1: str, *args: str, kwonly1: int) -> None:
@@ -2038,25 +2041,27 @@ class ClassVariableTestCase(RetypeTestCase):
 
 
 class SerializeTestCase(RetypeTestCase):
-    def test_serialize_attribute(self):
+    def test_serialize_attribute(self) -> None:
         src_txt = "a.b.c"
         expected = "a.b.c"
 
         src = ast3.parse(dedent(src_txt))
+        assert isinstance(src, ast3.Module)
         attr_expr = src.body[0]
         self.assertEqual(serialize_attribute(attr_expr), expected)
 
-    def test_serialize_name(self):
+    def test_serialize_name(self) -> None:
         src_txt = "just_a_flat_name"
         expected = "just_a_flat_name"
 
         src = ast3.parse(dedent(src_txt))
+        assert isinstance(src, ast3.Module)
         attr_expr = src.body[0]
         self.assertEqual(serialize_attribute(attr_expr), expected)
 
 
 class PrintStmtTestCase(RetypeTestCase):
-    def test_print_stmt_crash(self):
+    def test_print_stmt_crash(self) -> None:
         pyi_txt = "def f() -> None: ...\n"
         src_txt = """
         import sys
@@ -2073,7 +2078,7 @@ class PrintStmtTestCase(RetypeTestCase):
 
 
 class PostProcessTestCase(RetypeTestCase):
-    def test_straddling_variable_comments(self):
+    def test_straddling_variable_comments(self) -> None:
         pyi_txt = """
         def f(s: str) -> str: ...
 
@@ -2117,7 +2122,7 @@ class PostProcessTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_straddling_function_signature_type_comments1(self):
+    def test_straddling_function_signature_type_comments1(self) -> None:
         pyi_txt = """
         class C:
             def f(self) -> Callable[[int, int], str]: ...
@@ -2144,7 +2149,7 @@ class PostProcessTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_straddling_function_signature_type_comments2(self):
+    def test_straddling_function_signature_type_comments2(self) -> None:
         pyi_txt = """
         class C:
             def f(self) -> Callable[[int, int], str]: ...
@@ -2173,7 +2178,7 @@ class PostProcessTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
-    def test_straddling_function_signature_type_comments3(self):
+    def test_straddling_function_signature_type_comments3(self) -> None:
         pyi_txt = """
         class C:
             def f(self) -> Callable[[int, int], str]: ...
