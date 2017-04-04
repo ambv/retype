@@ -47,7 +47,7 @@ Directory = partial(
 @click.argument(
     'src',
     nargs=-1,
-    type=Directory(),
+    type=Directory(file_okay=True),
 )
 @click.version_option(version=__version__)
 def main(src, pyi_dir, target_dir):
@@ -55,9 +55,10 @@ def main(src, pyi_dir, target_dir):
     returncode = 0
     for src_entry in src:
         for file, error in retype_path(
-            Path(pyi_dir),
-            srcs=Path(src_entry),
+            Path(src_entry),
+            pyi_dir=Path(pyi_dir),
             targets=Path(target_dir),
+            src_explicitly_given=True,
         ):
             print(f'error: {file}: {error}', file=sys.stderr)
             returncode += 1
@@ -69,43 +70,47 @@ def main(src, pyi_dir, target_dir):
     sys.exit(min(returncode, 125))
 
 
-def retype_path(path, srcs, targets):
-    """Recursively retype files in the given directories. Generate errors."""
-    for child in path.iterdir():
-        if child.is_dir():
-            yield from retype_path(child, srcs / child.name, targets / child.name)
-        elif child.suffix == '.pyi':
-            try:
-                retype_file(child, srcs, targets)
-            except Exception as e:
-                yield (child, str(e))
-        elif child.name.startswith('.'):
-            continue  # silently ignore dot files.
-        else:
-            yield (child, f'Unexpected file in {path}')
+def retype_path(src, pyi_dir, targets, *, src_explicitly_given=False):
+    """Recursively retype files or directories given. Generate errors."""
+    if src.is_dir():
+        for child in src.iterdir():
+            if child == pyi_dir or child == targets:
+                continue
+            yield from retype_path(child, pyi_dir / src.name, targets / src.name)
+    elif src.suffix == '.py' or src_explicitly_given:
+        try:
+            retype_file(src, pyi_dir, targets)
+        except Exception as e:
+            yield (src, str(e))
 
 
-def retype_file(pyi, srcs, targets):
-    """Based on `pyi`, find a file stored in `srcs`, retype, save in `targets`.
+def retype_file(src, pyi_dir, targets):
+    """Retype `src`, finding types in `pyi_dir`. Save in `targets`.
 
     The file should remain formatted exactly as it was before, save for:
     - annotations
     - additional imports needed to satisfy annotations
     - additional module-level names needed to satisfy annotations
     """
-    with open(pyi) as pyi_file:
-        pyi_txt = pyi_file.read()
-    py = pyi.name[:-1]
-    with open(srcs / py) as src_file:
+    with open(src) as src_file:
         src_txt = src_file.read()
-    pyi_ast = ast3.parse(pyi_txt)
     src_node = lib2to3_parse(src_txt)
-    assert isinstance(pyi_ast, ast3.Module)
-    reapply_all(pyi_ast.body, src_node)
+    try:
+        with open((pyi_dir / src.name).with_suffix('.pyi')) as pyi_file:
+            pyi_txt = pyi_file.read()
+    except FileNotFoundError:
+        print(
+            f'warning: .pyi file for source {src} not found in {pyi_dir}',
+            file=sys.stderr,
+        )
+    else:
+        pyi_ast = ast3.parse(pyi_txt)
+        assert isinstance(pyi_ast, ast3.Module)
+        reapply_all(pyi_ast.body, src_node)
     targets.mkdir(parents=True, exist_ok=True)
-    with open(targets / py, 'w') as target_file:
+    with open(targets / src.name, 'w') as target_file:
         target_file.write(lib2to3_unparse(src_node))
-    return targets / py
+    return targets / src.name
 
 
 def lib2to3_parse(src_txt):
