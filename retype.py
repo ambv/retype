@@ -91,6 +91,8 @@ def retype_file(src, pyi_dir, targets):
     - annotations
     - additional imports needed to satisfy annotations
     - additional module-level names needed to satisfy annotations
+
+    Type comments in sources are normalized to type annotations.
     """
     with open(src) as src_file:
         src_txt = src_file.read()
@@ -107,6 +109,7 @@ def retype_file(src, pyi_dir, targets):
         pyi_ast = ast3.parse(pyi_txt)
         assert isinstance(pyi_ast, ast3.Module)
         reapply_all(pyi_ast.body, src_node)
+    fix_remaining_type_comments(src_node)
     targets.mkdir(parents=True, exist_ok=True)
     with open(targets / src.name, 'w') as target_file:
         target_file.write(lib2to3_unparse(src_node))
@@ -144,7 +147,6 @@ def reapply_all(ast_node, lib2to3_node):
     late_processing = reapply(ast_node, lib2to3_node)
     for lazy_func in reversed(late_processing):
         lazy_func()
-    fix_remaining_type_comments(lib2to3_node)
 
 
 @singledispatch
