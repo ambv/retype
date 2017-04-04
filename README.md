@@ -6,14 +6,25 @@ Re-apply type annotations from .pyi stubs to your codebase.
 
 ## Usage
 
-When you run `retype`, it will look for .pyi files in the `types/`
-directory, and for each such file, it will re-apply typing annotations
-to respective source files found in the current working directory.
-The resulting combined sources are put in `typed-src/`.  All those
-directories are customizable, see `--help`.
+```
+retype [OPTIONS] [SRC]...
 
-`retype` reapplies the type annotations using the Python 3 function and
-variable annotation syntax.
+Options:
+  -p, --pyi-dir DIRECTORY     Where to find .pyi stubs.  [default: types]
+  -t, --target-dir DIRECTORY  Where to write annotated sources.  [default: typed-src]
+  -q, --quiet                 Don't emit warnings, just errors.
+  --version                   Show the version and exit.
+  --help                      Show this message and exit.
+```
+
+When you run `retype`, it goes through all files you passed as SRC,
+finds the corresponding .pyi files in the `types/` directory, and
+re-applies typing annotations from .pyi to the sources, using the
+Python 3 function and variable annotation syntax.  The resulting
+combined sources are saved in `typed-src/`.
+
+You can also pass directories as sources, in which case `retype` will
+look for .py files in them recursively.
 
 It's smart enough to do the following:
 * reapply typing imports
