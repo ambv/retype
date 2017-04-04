@@ -50,13 +50,18 @@ Directory = partial(
     is_flag=True,
     help="Don't emit warnings, just errors.",
 )
+@click.option(
+    '--hg',
+    is_flag=True,
+    help="Post-process files to preserve implicit byte literals.",
+)
 @click.argument(
     'src',
     nargs=-1,
     type=Directory(file_okay=True),
 )
 @click.version_option(version=__version__)
-def main(src, pyi_dir, target_dir, quiet):
+def main(src, pyi_dir, target_dir, quiet, hg):
     """Re-apply type annotations from .pyi stubs to your codebase."""
     returncode = 0
     for src_entry in src:
@@ -66,6 +71,7 @@ def main(src, pyi_dir, target_dir, quiet):
             targets=Path(target_dir),
             src_explicitly_given=True,
             quiet=quiet,
+            hg=hg,
         ):
             print(f'error: {file}: {error}', file=sys.stderr)
             returncode += 1
@@ -77,23 +83,25 @@ def main(src, pyi_dir, target_dir, quiet):
     sys.exit(min(returncode, 125))
 
 
-def retype_path(src, pyi_dir, targets, *, src_explicitly_given=False, quiet=False):
+def retype_path(
+    src, pyi_dir, targets, *, src_explicitly_given=False, quiet=False, hg=False
+):
     """Recursively retype files or directories given. Generate errors."""
     if src.is_dir():
         for child in src.iterdir():
             if child == pyi_dir or child == targets:
                 continue
             yield from retype_path(
-                child, pyi_dir / src.name, targets / src.name, quiet=quiet
+                child, pyi_dir / src.name, targets / src.name, quiet=quiet, hg=hg,
             )
     elif src.suffix == '.py' or src_explicitly_given:
         try:
-            retype_file(src, pyi_dir, targets, quiet=quiet)
+            retype_file(src, pyi_dir, targets, quiet=quiet, hg=hg)
         except Exception as e:
             yield (src, str(e))
 
 
-def retype_file(src, pyi_dir, targets, *, quiet=False):
+def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False):
     """Retype `src`, finding types in `pyi_dir`. Save in `targets`.
 
     The file should remain formatted exactly as it was before, save for:
@@ -122,7 +130,7 @@ def retype_file(src, pyi_dir, targets, *, quiet=False):
     fix_remaining_type_comments(src_node)
     targets.mkdir(parents=True, exist_ok=True)
     with open(targets / src.name, 'w') as target_file:
-        target_file.write(lib2to3_unparse(src_node))
+        target_file.write(lib2to3_unparse(src_node, hg=hg))
     return targets / src.name
 
 
@@ -143,9 +151,13 @@ def lib2to3_parse(src_txt):
     return result
 
 
-def lib2to3_unparse(node):
+def lib2to3_unparse(node, *, hg=False):
     """Given a lib2to3 node, return its string representation."""
-    return str(node)
+    code = str(node)
+    if hg:
+        from retype_hgext import apply_job_security
+        code = apply_job_security(code)
+    return code
 
 
 def reapply_all(ast_node, lib2to3_node):

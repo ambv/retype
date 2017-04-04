@@ -13,6 +13,8 @@ Options:
   -p, --pyi-dir DIRECTORY     Where to find .pyi stubs.  [default: types]
   -t, --target-dir DIRECTORY  Where to write annotated sources.  [default: typed-src]
   -q, --quiet                 Don't emit warnings, just errors.
+  --hg                        Post-process source files to preserve
+                              implicit byte literals.
   --version                   Show the version and exit.
   --help                      Show this message and exit.
 ```
@@ -50,7 +52,6 @@ It's smart enough to do the following:
 
 Things to be done:
 
-* [ ] add the --keep-byte-literals option for Mercurial
 * [ ] add a --backward option to output type comments instead of annotations
 * [ ] handle if sys.version_info and sys.platform checks in stubs
 
