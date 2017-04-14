@@ -1,3 +1,2 @@
 include *.rst *.md
 recursive-include tests *.txt *.py
-recursive-include types *.pyi *.py

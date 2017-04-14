@@ -50,8 +50,6 @@ It's smart enough to do the following:
 
 ## List of things to be done
 
-Things to be done:
-
 * [ ] add a --backward option to output type comments instead of annotations
 * [ ] handle if sys.version_info and sys.platform checks in stubs
 
@@ -131,7 +129,7 @@ MIT
 
 ## Change Log
 
-### 17.3.0 (unreleased)
+### 17.4.0
 
 * first published version
 

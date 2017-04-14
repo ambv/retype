@@ -6,6 +6,10 @@ import re
 from setuptools import setup
 import sys
 
+try:
+    from pathlib import Path
+except ImportError:
+    pass  # will fail assert below.
 
 assert sys.version_info >= (3, 6, 0), "retype requires Python 3.6+"
 
@@ -45,7 +49,13 @@ setup(
     author_email='lukasz@langa.pl',
     url='https://github.com/ambv/retype',
     license='MIT',
-    py_modules=['retype'],
+    py_modules=['retype', 'retype_hgext'],
+    data_files=[
+        (
+            str(Path('lib/mypy/typeshed/third_party/3.6')),
+            ('types/retype.pyi', 'types/retype_hgext.pyi'),
+        ),
+    ],
     zip_safe=False,
     install_requires=['click', 'typed-ast'],
     test_suite='tests.test_retype',
