@@ -154,7 +154,7 @@ except ImportError:
             yield t
 
 
-def apply_job_security(code: str) -> str:
+def apply_job_security(code):
     """Treat input `code` like Python 2 (implicit strings are byte literals).
 
     The implementation is horribly inefficient but the goal is to be compatible
