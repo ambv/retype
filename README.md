@@ -29,6 +29,7 @@ You can also pass directories as sources, in which case `retype` will
 look for .py files in them recursively.
 
 It's smart enough to do the following:
+
 * reapply typing imports
 * reapply function argument annotations
 * reapply function return value annotations
