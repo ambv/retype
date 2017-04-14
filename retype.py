@@ -197,7 +197,7 @@ def _r_importfrom(import_from, node):
     level = import_from.level or 0
     module = '.' * level + (import_from.module or '')
     names = import_from.names
-    for child in node.children:
+    for child in flatten_some(node.children):
         if child.type != syms.simple_stmt:
             continue
 
@@ -217,7 +217,7 @@ def _r_importfrom(import_from, node):
 def _r_import(import_, node):
     assert node.type in (syms.file_input, syms.suite)
     names = import_.names
-    for child in node.children:
+    for child in flatten_some(node.children):
         if child.type != syms.simple_stmt:
             continue
 
@@ -237,7 +237,7 @@ def _r_import(import_, node):
 def _r_classdef(cls, node):
     assert node.type in (syms.file_input, syms.suite)
     name = Leaf(token.NAME, cls.name)
-    for child in node.children:
+    for child in flatten_some(node.children):
         if child.type == syms.decorated:
             # skip decorators
             child = child.children[1]
@@ -267,7 +267,7 @@ def _r_functiondef(fun, node):
         "staticmethod" not in pyi_method_decorators
     )
     args, returns = get_function_signature(fun, is_method=is_method)
-    for child in node.children:
+    for child in flatten_some(node.children):
         decorators = None
         if child.type == syms.decorated:
             # skip decorators
@@ -340,7 +340,7 @@ def _r_annassign(annassign, body):
             annotation,
         ],
     )
-    for child in body.children:
+    for child in flatten_some(body.children):
         if child.type != syms.simple_stmt:
             continue
 
@@ -443,7 +443,7 @@ def _r_assign(assign, body):
     value = convert_annotation(assign.value)
     value.prefix = " "
 
-    for child in body.children:
+    for child in flatten_some(body.children):
         if child.type != syms.simple_stmt:
             continue
 
@@ -1192,6 +1192,15 @@ def remove_function_signature_type_comment(body):
 
 def minimize_whitespace(text):
     return re.sub(r'[\n\t ]+', ' ', text, re.MULTILINE).strip()
+
+
+def flatten_some(children):
+    """Generates nodes or leaves, unpacking bodies of try:except:finally: statements."""
+    for node in children:
+        if node.type in (syms.try_stmt, syms.suite):
+            yield from flatten_some(node.children)
+        else:
+            yield node
 
 
 def pop_param(params):
