@@ -253,6 +253,7 @@ def _r_classdef(cls, node):
     return result
 
 
+@reapply.register(ast3.AsyncFunctionDef)
 @reapply.register(ast3.FunctionDef)
 def _r_functiondef(fun, node):
     assert node.type in (syms.file_input, syms.suite)
@@ -272,6 +273,10 @@ def _r_functiondef(fun, node):
         if child.type == syms.decorated:
             # skip decorators
             decorators = child.children[0]
+            child = child.children[1]
+
+        if child.type == syms.async_stmt:
+            # async def in 3.5 and 3.6
             child = child.children[1]
 
         if child.type == syms.funcdef:

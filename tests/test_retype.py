@@ -373,6 +373,13 @@ class FunctionArgumentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
+    def test_complex_sig_async(self) -> None:
+        pyi_txt = "async def fun(a1: str, *args: str, kwonly1: int, **kwargs) -> None: ...\n"
+        src_txt = "async def fun(a1, *args, kwonly1=None, **kwargs) -> None: ...\n"
+        expected_txt = "async def fun(a1: str, *args: str, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
     def test_complex_sig1_type_comment(self) -> None:
         pyi_txt = """
         def fun(a1, *args, kwonly1, **kwargs):

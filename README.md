@@ -99,6 +99,10 @@ It's smart enough to do the following:
 * Because of the above, existing source variable annotations and type
   comments buried in conditionals and loops will not be deduplicated
   (and `mypy` will complain that a name was already defined).
+* An async function in the stub will match a regular function of the
+  same name in the same scope and vice versa.  This is to enable
+  annotating async functions spelled with `@asyncio.coroutine`.
+
 
 ## Tests
 
