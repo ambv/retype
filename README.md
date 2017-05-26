@@ -134,6 +134,10 @@ MIT
 
 ## Change Log
 
+### 17.5.0
+
+* support async functions
+
 ### 17.4.0
 
 * first published version
