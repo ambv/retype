@@ -15,6 +15,7 @@ Options:
   -q, --quiet                 Don't emit warnings, just errors.
   --hg                        Post-process source files to preserve
                               implicit byte literals.
+  --traceback                 Show a Python traceback on error
   --version                   Show the version and exit.
   --help                      Show this message and exit.
 ```
@@ -134,9 +135,11 @@ MIT
 
 ## Change Log
 
-### 17.5.0
+### 17.6.0
 
 * support async functions
+
+* support --traceback for getting more information about internal errors
 
 ### 17.4.0
 
