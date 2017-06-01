@@ -291,17 +291,14 @@ def _r_functiondef(fun, node):
             decorators = child.children[0]
             child = child.children[1]
 
-        if child.type == syms.async_stmt:
+        if child.type in (syms.async_stmt, syms.async_funcdef):
             # async def in 3.5 and 3.6
             child = child.children[1]
 
-        if child.type == syms.funcdef:
-            offset = 1
-        elif child.type == syms.async_funcdef:
-            offset = 2
-        else:
+        if child.type != syms.funcdef:
             continue
 
+        offset = 1
         if child.children[offset] == name:
             lineno = child.get_lineno()
             column = 1
