@@ -11,6 +11,7 @@ from lib2to3.pytree import Node, Leaf, type_repr
 from pathlib import Path
 import re
 import sys
+import traceback
 
 import click
 from typed_ast import ast3
@@ -55,17 +56,22 @@ Directory = partial(
     is_flag=True,
     help="Post-process files to preserve implicit byte literals.",
 )
+@click.option(
+    '--traceback',
+    is_flag=True,
+    help="Show a Python traceback on error",
+)
 @click.argument(
     'src',
     nargs=-1,
     type=Directory(file_okay=True),
 )
 @click.version_option(version=__version__)
-def main(src, pyi_dir, target_dir, quiet, hg):
+def main(src, pyi_dir, target_dir, quiet, hg, traceback):
     """Re-apply type annotations from .pyi stubs to your codebase."""
     returncode = 0
     for src_entry in src:
-        for file, error in retype_path(
+        for file, error, exc_type, tb in retype_path(
             Path(src_entry),
             pyi_dir=Path(pyi_dir),
             targets=Path(target_dir),
@@ -74,6 +80,11 @@ def main(src, pyi_dir, target_dir, quiet, hg):
             hg=hg,
         ):
             print(f'error: {file}: {error}', file=sys.stderr)
+            if traceback:
+                print('Traceback (most recent call last):', file=sys.stderr)
+                for line in tb:
+                    print(line, file=sys.stderr, end='')
+                print(f'{exc_type.__name__}: {error}', file=sys.stderr)
             returncode += 1
     if not src and not quiet:
         print('warning: no sources given', file=sys.stderr)
@@ -98,7 +109,12 @@ def retype_path(
         try:
             retype_file(src, pyi_dir, targets, quiet=quiet, hg=hg)
         except Exception as e:
-            yield (src, str(e))
+            yield (
+                src,
+                str(e),
+                type(e),
+                traceback.format_tb(e.__traceback__),
+            )
 
 
 def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False):
