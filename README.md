@@ -12,6 +12,8 @@ retype [OPTIONS] [SRC]...
 Options:
   -p, --pyi-dir DIRECTORY     Where to find .pyi stubs.  [default: types]
   -t, --target-dir DIRECTORY  Where to write annotated sources.  [default: typed-src]
+  -i, --incremental           Allow for missing type annotations in both stubs
+                              and the source.
   -q, --quiet                 Don't emit warnings, just errors.
   --hg                        Post-process source files to preserve
                               implicit byte literals.

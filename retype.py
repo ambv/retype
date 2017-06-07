@@ -11,6 +11,7 @@ from lib2to3.pytree import Node, Leaf, type_repr
 from pathlib import Path
 import re
 import sys
+import threading
 import traceback
 
 import click
@@ -26,6 +27,9 @@ Directory = partial(
     readable=True,
     writable=False,
 )
+
+
+Config = threading.local()
 
 
 @click.command()
@@ -44,6 +48,12 @@ Directory = partial(
     default='typed-src',
     help='Where to write annotated sources.',
     show_default=True,
+)
+@click.option(
+    '-i',
+    '--incremental',
+    is_flag=True,
+    help="Allow for missing type annotations in both stubs and the source.",
 )
 @click.option(
     '-q',
@@ -67,8 +77,9 @@ Directory = partial(
     type=Directory(file_okay=True),
 )
 @click.version_option(version=__version__)
-def main(src, pyi_dir, target_dir, quiet, hg, traceback):
+def main(src, pyi_dir, target_dir, incremental, quiet, hg, traceback):
     """Re-apply type annotations from .pyi stubs to your codebase."""
+    Config.incremental = incremental
     returncode = 0
     for src_entry in src:
         for file, error, exc_type, tb in retype_path(
@@ -991,6 +1002,9 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
 def annotate_return(function, ast_returns, offset):
     if ast_returns is None:
         if function[offset] == _colon:
+            if Config.incremental:
+                return
+
             raise ValueError(
                 ".pyi file is missing return value and source doesn't "
                 "provide it either"
@@ -1250,7 +1264,7 @@ def pop_param(params):
 def gen_annotated_params(
     args, defaults, params, *, implicit_default=False, is_method=False
 ):
-    missing_ok = is_method
+    missing_ok = is_method or Config.incremental
     for arg, expected_default in zip(args, defaults):
         yield new(_comma)
 

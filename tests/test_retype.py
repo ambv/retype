@@ -6,6 +6,7 @@ from unittest import main, TestCase
 from typed_ast import ast3
 
 from retype import (
+    Config,
     fix_remaining_type_comments,
     lib2to3_parse,
     reapply_all,
@@ -16,7 +17,8 @@ from retype import (
 class RetypeTestCase(TestCase):
     maxDiff = None
 
-    def assertReapply(self, pyi_txt, src_txt, expected_txt):
+    def assertReapply(self, pyi_txt, src_txt, expected_txt, *, incremental=False):
+        Config.incremental = incremental
         pyi = ast3.parse(dedent(pyi_txt))
         src = lib2to3_parse(dedent(src_txt))
         expected = lib2to3_parse(dedent(expected_txt))
@@ -26,7 +28,10 @@ class RetypeTestCase(TestCase):
         self.longMessage = False
         self.assertEqual(expected, src, f"\n{expected!r} != \n{src!r}")
 
-    def assertReapplyVisible(self, pyi_txt, src_txt, expected_txt):
+    def assertReapplyVisible(
+        self, pyi_txt, src_txt, expected_txt, *, incremental=False
+    ):
+        Config.incremental = incremental
         pyi = ast3.parse(dedent(pyi_txt))
         src = lib2to3_parse(dedent(src_txt))
         expected = lib2to3_parse(dedent(expected_txt))
@@ -40,7 +45,10 @@ class RetypeTestCase(TestCase):
             f"\n{str(expected)!r} != \n{str(src)!r}",
         )
 
-    def assertReapplyRaises(self, pyi_txt, src_txt, expected_exception):
+    def assertReapplyRaises(
+        self, pyi_txt, src_txt, expected_exception, *, incremental=False
+    ):
+        Config.incremental = incremental
         with self.assertRaises(expected_exception) as ctx:
             pyi = ast3.parse(dedent(pyi_txt))
             src = lib2to3_parse(dedent(src_txt))
@@ -229,6 +237,27 @@ class FunctionReturnTestCase(RetypeTestCase):
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_missing_return_value_both_incremental(self) -> None:
+        pyi_txt = "def fun(): ...\n"
+        src_txt = "def fun(): ...\n"
+        expected_txt = "def fun(): ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt, incremental=True)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, incremental=True)
+
+    def test_missing_return_value_pyi_incremental(self) -> None:
+        pyi_txt = "def fun(): ...\n"
+        src_txt = "def fun() -> None: ...\n"
+        expected_txt = "def fun() -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt, incremental=True)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, incremental=True)
+
+    def test_missing_return_value_src_incremental(self) -> None:
+        pyi_txt = "def fun() -> None: ...\n"
+        src_txt = "def fun(): ...\n"
+        expected_txt = "def fun() -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt, incremental=True)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, incremental=True)
 
 
 class FunctionArgumentTestCase(RetypeTestCase):
@@ -458,6 +487,13 @@ class FunctionArgumentTestCase(RetypeTestCase):
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_missing_ann_both_incremental(self) -> None:
+        pyi_txt = "def fun(a1) -> None: ...\n"
+        src_txt = "def fun(a1) -> None: ...\n"
+        expected_txt= "def fun(a1) -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt, incremental=True)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, incremental=True)
 
 
 class FunctionVariableTestCase(RetypeTestCase):
