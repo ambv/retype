@@ -495,6 +495,13 @@ class FunctionArgumentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt, incremental=True)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, incremental=True)
 
+    def test_missing_ann_both_multiple_args_incremental(self) -> None:
+        pyi_txt = "def fun(a1, a2, *a3, **a4) -> None: ...\n"
+        src_txt = "def fun(a1, a2, *a3, **a4) -> None: ...\n"
+        expected_txt= "def fun(a1, a2, *a3, **a4) -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt, incremental=True)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, incremental=True)
+
 
 class FunctionVariableTestCase(RetypeTestCase):
     def test_basic(self) -> None:

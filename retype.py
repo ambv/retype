@@ -17,7 +17,7 @@ import traceback
 import click
 from typed_ast import ast3
 
-__version__ = "17.6.1"
+__version__ = "17.6.2"
 
 Directory = partial(
     click.Path,
@@ -1299,7 +1299,7 @@ def gen_annotated_params(
             yield new(_eq)
             yield new(actual_default, prefix=' ')
 
-        missing_ok = False
+        missing_ok = Config.incremental
 
 
 def get_annotated_param(node, arg, *, missing_ok=False):

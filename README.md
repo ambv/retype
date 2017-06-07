@@ -137,6 +137,10 @@ MIT
 
 ## Change Log
 
+### 17.6.2
+
+* bugfix: --incremental didn't work with multiple arguments before
+
 ### 17.6.1
 
 * support --incremental stub application (i.e. allow for both stubs and the
