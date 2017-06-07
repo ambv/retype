@@ -17,7 +17,7 @@ import traceback
 import click
 from typed_ast import ast3
 
-__version__ = "17.6.0"
+__version__ = "17.6.1"
 
 Directory = partial(
     click.Path,

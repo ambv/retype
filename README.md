@@ -137,6 +137,11 @@ MIT
 
 ## Change Log
 
+### 17.6.1
+
+* support --incremental stub application (i.e. allow for both stubs and the
+  source to be missing annotations for some arguments and/or return value)
+
 ### 17.6.0
 
 * support async functions
