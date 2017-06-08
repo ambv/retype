@@ -2134,6 +2134,17 @@ class PrintStmtTestCase(RetypeTestCase):
             str(exception),
         )
 
+class ParseErrorTestCase(RetypeTestCase):
+    def test_missing_trailing_newline_crash(self) -> None:
+        pyi_txt = "def f() -> None: ...\n"
+        src_txt = """
+        def f():
+            pass"""
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            'Cannot parse: 4:0: Perhaps the source is missing a trailing newline.',
+            str(exception),
+        )
 
 class PostProcessTestCase(RetypeTestCase):
     def test_straddling_variable_comments(self) -> None:
