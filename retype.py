@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import sys
 import threading
+import tokenize
 import traceback
 
 import click
@@ -138,9 +139,9 @@ def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False):
 
     Type comments in sources are normalized to type annotations.
     """
-    with open(src) as src_file:
-        src_txt = src_file.read()
-    src_node = lib2to3_parse(src_txt)
+    with tokenize.open(src) as src_buffer:
+        src_encoding = src_buffer.encoding
+        src_node = lib2to3_parse(src_buffer.read())
     try:
         with open((pyi_dir / src.name).with_suffix('.pyi')) as pyi_file:
             pyi_txt = pyi_file.read()
@@ -156,7 +157,7 @@ def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False):
         reapply_all(pyi_ast.body, src_node)
     fix_remaining_type_comments(src_node)
     targets.mkdir(parents=True, exist_ok=True)
-    with open(targets / src.name, 'w') as target_file:
+    with open(targets / src.name, 'w', encoding=src_encoding) as target_file:
         target_file.write(lib2to3_unparse(src_node, hg=hg))
     return targets / src.name
 
