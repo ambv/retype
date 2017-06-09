@@ -139,10 +139,9 @@ def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False):
 
     Type comments in sources are normalized to type annotations.
     """
-    src_encoding = tokenize.open(src).encoding
-    with open(src, encoding=src_encoding) as src_file:
-        src_txt = src_file.read()
-    src_node = lib2to3_parse(src_txt)
+    with tokenize.open(src) as src_buffer:
+        src_encoding = src_buffer.encoding
+        src_node = lib2to3_parse(src_buffer.read())
     try:
         with open((pyi_dir / src.name).with_suffix('.pyi')) as pyi_file:
             pyi_txt = pyi_file.read()
