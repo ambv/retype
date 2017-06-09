@@ -2142,7 +2142,7 @@ class ParseErrorTestCase(RetypeTestCase):
             pass"""
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            'Cannot parse: 4:0: Perhaps the source is missing a trailing newline.',
+            'Cannot parse: 4:0: The source is missing a trailing newline.',
             str(exception),
         )
 
