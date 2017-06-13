@@ -170,7 +170,11 @@ def lib2to3_parse(src_txt):
         result = drv.parse_string(src_txt, True)
     except ParseError as pe:
         lineno, column = pe.context[1]
-        faulty_line = src_txt.splitlines()[lineno - 1]
+        lines = src_txt.splitlines()
+        if src_txt[-1] != '\n':
+            faulty_line = "The source is missing a trailing newline."
+        else:
+            faulty_line = lines[lineno - 1]
         raise ValueError(f"Cannot parse: {lineno}:{column}: {faulty_line}") from None
 
     if isinstance(result, Leaf):
