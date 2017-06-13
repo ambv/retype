@@ -1302,10 +1302,12 @@ def gen_annotated_params(
                 f"but the .pyi file does"
             )
 
-        yield get_annotated_param(param, arg, missing_ok=missing_ok)
+        node = get_annotated_param(param, arg, missing_ok=missing_ok)
+        yield node
         if actual_default:
-            yield new(_eq)
-            yield new(actual_default, prefix=' ')
+            whitespace = ' ' if node.type == syms.tname else ''
+            yield new(_eq, prefix=whitespace)
+            yield new(actual_default, prefix=whitespace)
 
         missing_ok = Config.incremental
 

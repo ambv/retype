@@ -502,6 +502,12 @@ class FunctionArgumentTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt, incremental=True)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, incremental=True)
 
+    def test_missing_ann_both_incremental_default_value_whitespace(self) -> None:
+        pyi_txt = "def fun(a1=..., a2: int = 0) -> None: ...\n"
+        src_txt = "def fun(a1=False, a2=0) -> None: ...\n"
+        expected_txt= "def fun(a1=False, a2: int = 0) -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt, incremental=True)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, incremental=True)
 
 class FunctionVariableTestCase(RetypeTestCase):
     def test_basic(self) -> None:
