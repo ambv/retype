@@ -2279,6 +2279,40 @@ class PostProcessTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
+    def test_straddling_function_signature_type_ignore(self) -> None:
+        pyi_txt = """
+        class C:
+            def f(self) -> Callable[[int, int], str]: ...
+        """
+        src_txt = """
+        import sys
+
+        class C:
+            def f(self):
+                def g(row, # type: int1
+                      column, # type: ignore
+                ):
+                    # type: ignore
+                    return self.chessboard[row][column]
+                return g
+        """
+        expected_txt = """
+        import sys
+
+        class C:
+            def f(self) -> Callable[[int, int], str]:
+                def g(row, # type: int1
+                      column, # type: ignore
+                ):
+                    # type: ignore
+                    return self.chessboard[row][column]
+                return g
+        """
+        # NOTE: `# type: int1` is not applied either because of the missing
+        # return value type comment.
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
 
 if __name__ == '__main__':
     main()

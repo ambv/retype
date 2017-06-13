@@ -1452,7 +1452,7 @@ _star = Leaf(token.STAR, '*')
 _ellipsis = Node(syms.atom, children=[new(_dot), new(_dot), new(_dot)])
 
 _type_comment_re = re.compile(
-    r'^[\t ]*# type: *(?P<type>[^\t\n]+)[ \t]*(?P<nl>\n?)$',
+    r'^[\t ]*# type: *(?P<type>[^\t\n]+)(?<!ignore)[ \t]*(?P<nl>\n?)$',
     re.MULTILINE,
 )
 
