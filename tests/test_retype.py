@@ -2140,11 +2140,12 @@ class ParseErrorTestCase(RetypeTestCase):
         src_txt = """
         def f():
             pass"""
-        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
-        self.assertEqual(
-            'Cannot parse: 4:0: The source is missing a trailing newline.',
-            str(exception),
-        )
+        expected_txt = """
+        def f() -> None:
+            pass
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
 class PostProcessTestCase(RetypeTestCase):
     def test_straddling_variable_comments(self) -> None:
