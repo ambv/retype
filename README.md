@@ -137,6 +137,18 @@ MIT
 
 ## Change Log
 
+### 17.6.3
+
+* bugfix: don't try to re-apply `# type: ignore` as a function annotation
+
+* bugfix: support arbitrary source file encodings, patch by Michael Overmeyer.
+
+* bugfix: support missing newlines at the end of the file, patch by Michael
+  Overmeyer.
+
+* bugfix: in --incremental, format default values according to PEP 8
+  (no spaces around the = sign if the type is missing)
+
 ### 17.6.2
 
 * bugfix: --incremental didn't work with multiple arguments before
@@ -161,4 +173,5 @@ MIT
 
 ## Authors
 
-Glued together by [Łukasz Langa](mailto:lukasz@langa.pl).
+Glued together by [Łukasz Langa](mailto:lukasz@langa.pl).  Multiple
+improvements by [Michael Overmeyer](mailto:m.overmeyer@yahoo.ca).
