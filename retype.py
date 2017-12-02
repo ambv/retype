@@ -70,7 +70,7 @@ Config = threading.local()
 @click.option(
     '--traceback',
     is_flag=True,
-    help="Show a Python traceback on error",
+    help="Show a Python traceback on error.",
 )
 @click.argument(
     'src',
