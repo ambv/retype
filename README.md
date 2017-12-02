@@ -137,6 +137,11 @@ MIT
 
 ## Change Log
 
+### 17.12.0
+
+* bugfix: don't re-apply `# type: ignore` as an annotation if followed
+  by another comment.  Original patch by Shannon Zhu.
+
 ### 17.6.3
 
 * bugfix: don't try to re-apply `# type: ignore` as a function annotation

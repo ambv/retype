@@ -11,6 +11,7 @@ from retype import (
     lib2to3_parse,
     reapply_all,
     serialize_attribute,
+    _type_comment_re,
 )
 
 
@@ -2265,7 +2266,7 @@ class PostProcessTestCase(RetypeTestCase):
         class C:
             def f(self):
                 def g(row, # type: int1
-                      column, # type: int2
+                      column, # type: int2  # with a further comment
                 ):
                     # type: (...) -> str
                     return self.chessboard[row][column]
@@ -2277,7 +2278,7 @@ class PostProcessTestCase(RetypeTestCase):
         class C:
             def f(self) -> Callable[[int, int], str]:
                 def g(row: int1,
-                      column: int2
+                      column: int2  # with a further comment
                 ) -> str:
                     return self.chessboard[row][column]
                 return g
@@ -2295,6 +2296,8 @@ class PostProcessTestCase(RetypeTestCase):
 
         class C:
             def f(self):
+                x = Foo.get(user_id)  # type: ignore  # comment
+                y = []  # type: List[int]  # comment
                 def g(row, # type: int1
                       column, # type: ignore
                 ):
@@ -2307,6 +2310,8 @@ class PostProcessTestCase(RetypeTestCase):
 
         class C:
             def f(self) -> Callable[[int, int], str]:
+                x = Foo.get(user_id)  # type: ignore  # comment
+                y: List[int] = []  # comment
                 def g(row, # type: int1
                       column, # type: ignore
                 ):
@@ -2318,6 +2323,83 @@ class PostProcessTestCase(RetypeTestCase):
         # return value type comment.
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+
+class TypeCommentReTestCase(TestCase):
+    def assertMatch(self, input, *, type, nl):
+        m = _type_comment_re.match(input)
+        self.assertIsNotNone(m)
+        self.assertEqual(m.group('type'), type)
+        self.assertEqual(m.group('nl'), nl)
+
+    def assertNoMatch(self, input):
+        m = _type_comment_re.match(input)
+        self.assertIsNone(m)
+
+    def test_ignore(self):
+        self.assertNoMatch('# type:ignore')
+        self.assertNoMatch('# type: ignore')
+        self.assertNoMatch('# type: ignore\n')
+        self.assertNoMatch('# type: ignore ')
+        self.assertNoMatch('# type: ignore \n')
+
+    def test_ignore_with_comment(self):
+        self.assertNoMatch('# type: ignore#wut')
+        self.assertNoMatch('# type: ignore#wut\n')
+        self.assertNoMatch('# type: ignore#wut ')
+        self.assertNoMatch('# type: ignore#wut \n')
+        self.assertNoMatch('# type: ignore #wut \n')
+        self.assertNoMatch('# type: ignore # wut \n')
+        self.assertNoMatch('# type: ignore  # wut \n')
+        self.assertNoMatch('# type: ignore    # wut \n')
+
+    def test_no_whitespace_after_colon(self):
+        self.assertMatch('# type:int', type='int', nl='')
+        self.assertMatch('# type:int\n', type='int', nl='\n')
+        self.assertMatch('  # type:int\n', type='int', nl='\n')
+        self.assertMatch('# type:int  \n', type='int', nl='\n')
+        self.assertMatch('  # type:int  \n', type='int', nl='\n')
+
+    def test_simple_type(self):
+        self.assertMatch('# type: int', type='int', nl='')
+        self.assertMatch('# type: int\n', type='int', nl='\n')
+        self.assertMatch('  # type: int\n', type='int', nl='\n')
+        self.assertMatch('# type: int  \n', type='int', nl='\n')
+        self.assertMatch('  # type: int  \n', type='int', nl='\n')
+
+    def test_simple_type_with_comment(self):
+        self.assertMatch('# type: int#wut', type='int', nl='#wut')
+        self.assertMatch('# type: int#wut\n', type='int', nl='#wut\n')
+        self.assertMatch('  # type: int#wut\n', type='int', nl='#wut\n')
+        self.assertMatch('# type: int  #wut\n', type='int', nl='#wut\n')
+        self.assertMatch('  # type: int  # wut \n', type='int', nl='# wut \n')
+
+    def test_complex_type(self):
+        self.assertMatch(
+            '# type: Dict[str, Union[str, int, None]]',
+            type='Dict[str, Union[str, int, None]]',
+            nl='',
+        )
+        self.assertMatch(
+            '# type: Dict[str, Union[str, int, None]]\n',
+            type='Dict[str, Union[str, int, None]]',
+            nl='\n',
+        )
+        self.assertMatch(
+            '  # type: Dict[str, Union[str, int, None]]\n',
+            type='Dict[str, Union[str, int, None]]',
+            nl='\n',
+        )
+        self.assertMatch(
+            '# type: Dict[str, Union[str, int, None]]  \n',
+            type='Dict[str, Union[str, int, None]]',
+            nl='\n',
+        )
+        self.assertMatch(
+            '  # type: Dict[str, Union[str, int, None]]  \n',
+            type='Dict[str, Union[str, int, None]]',
+            nl='\n',
+        )
 
 
 if __name__ == '__main__':

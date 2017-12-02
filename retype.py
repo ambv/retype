@@ -18,7 +18,7 @@ import traceback
 import click
 from typed_ast import ast3
 
-__version__ = "17.6.3"
+__version__ = "17.12.0"
 
 Directory = partial(
     click.Path,
@@ -415,7 +415,9 @@ def _r_annassign(annassign, body):
                 actual_annotation = convert_annotation(type_comment)
                 ensure_annotations_equal(name, annotation, actual_annotation)
                 # ...and remove the redundant comment
-                child.children[1].prefix = maybe_type_comment.group('nl')
+                child.children[1].prefix = maybe_space_before_comment(
+                    maybe_type_comment.group('nl')
+                )
 
             if len(expr[2:]) > 0 and expr[2:] != [_ellipsis]:
                 # copy the value unless it was an old-style variable type comment
@@ -803,7 +805,7 @@ def fix_variable_annotation_type_comment(node, last):
         annassign_node.children.append(new(_eq))
         annassign_node.children.extend(new(elem) for elem in expr[2:])
     last.children = [expr[0], annassign_node]
-    node.prefix = m.group('nl')
+    node.prefix = maybe_space_before_comment(m.group('nl'))
 
 
 def fix_signature_annotation_type_comment(node, last, *, offset):
@@ -999,7 +1001,9 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
         ]
         for arg in parameters.pre_order():
             # remove now spurious type comments
-            arg.prefix = _type_comment_re.sub(r'\g<nl>', arg.prefix, re.MULTILINE)
+            arg.prefix = maybe_space_before_comment(
+                _type_comment_re.sub(r'\g<nl>', arg.prefix, re.MULTILINE)
+            )
     else:
         parameters.children = [
             parameters.children[0],  # (
@@ -1234,6 +1238,13 @@ def minimize_whitespace(text):
     return re.sub(r'[\n\t ]+', ' ', text, re.MULTILINE).strip()
 
 
+def maybe_space_before_comment(text):
+    if not text or not text.startswith('#'):
+        return text
+
+    return '  ' + text
+
+
 def flatten_some(children):
     """Generates nodes or leaves, unpacking bodies of try:except:finally: statements."""
     for node in children:
@@ -1454,8 +1465,26 @@ _star = Leaf(token.STAR, '*')
 _ellipsis = Node(syms.atom, children=[new(_dot), new(_dot), new(_dot)])
 
 _type_comment_re = re.compile(
-    r'^[\t ]*# type: *(?P<type>[^\t\n]+)(?<!ignore)[ \t]*(?P<nl>\n?)$',
-    re.MULTILINE,
+    r"""
+    ^
+    [\t ]*
+    \#[ ]type:[ ]*
+    (?P<type>
+        [^#\t\n]+?
+    )
+    (?<!ignore)     # note: this will force the non-greedy + in <type> to match
+                    # a trailing space which is why we need the silliness below
+    (?<!ignore[ ]{1})(?<!ignore[ ]{2})(?<!ignore[ ]{3})(?<!ignore[ ]{4})
+    (?<!ignore[ ]{5})(?<!ignore[ ]{6})(?<!ignore[ ]{7})(?<!ignore[ ]{8})
+    (?<!ignore[ ]{9})(?<!ignore[ ]{10})
+    [\t ]*
+    (?P<nl>
+        (?:\#[^\n]*)?
+        \n?
+    )
+    $
+    """,
+    re.MULTILINE | re.VERBOSE,
 )
 
 if __name__ == '__main__':
