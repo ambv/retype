@@ -1239,10 +1239,13 @@ def minimize_whitespace(text):
 
 
 def maybe_space_before_comment(text):
-    if not text or not text.startswith('#'):
-        return text
+    if not text:
+        return ''
 
-    return '  ' + text
+    if text.startswith('#'):
+        return '  ' + text
+
+    return text
 
 
 def flatten_some(children):
