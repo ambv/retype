@@ -397,7 +397,11 @@ def _r_annassign(annassign, body):
                     raise NotImplementedError(
                         f"unexpected element after annotation: {str(expr[3])}"
                     )
-                ensure_annotations_equal(name, annotation, expr[1].children[1])
+                ensure_annotations_equal(
+                    f"variable annotation for {name!r}",
+                    annotation,
+                    expr[1].children[1],
+                )
                 break
 
             if expr[1] != _eq:
@@ -413,7 +417,11 @@ def _r_annassign(annassign, body):
                 # variable already typed by type comment, let's ensure it's sane...
                 type_comment = parse_type_comment(maybe_type_comment.group('type'))
                 actual_annotation = convert_annotation(type_comment)
-                ensure_annotations_equal(name, annotation, actual_annotation)
+                ensure_annotations_equal(
+                    f"variable annotation for {name!r}",
+                    annotation,
+                    actual_annotation,
+                )
                 # ...and remove the redundant comment
                 child.children[1].prefix = maybe_space_before_comment(
                     maybe_type_comment.group('nl')
@@ -499,13 +507,7 @@ def _r_assign(assign, body):
             expr[1] == _eq
         ):
             actual_value = expr[2]
-            if value != actual_value:
-                value_str = minimize_whitespace(str(value))
-                actual_value_str = minimize_whitespace(str(actual_value))
-                raise ValueError(
-                    f"incompatible existing alias {name!r}. Expected: " +
-                    f"{value_str!r}, actual: {actual_value_str!r}"
-                )
+            ensure_annotations_equal(f"alias {name!r}", value, actual_value)
 
             break
     else:
@@ -1031,13 +1033,7 @@ def annotate_return(function, ast_returns, offset):
     ret_stmt.prefix = " "
     if function[offset] == _rarrow:
         existing_return = function[offset + 1]
-        if existing_return != ret_stmt:
-            ret_stmt_str = minimize_whitespace(str(ret_stmt))
-            existing_return_str = minimize_whitespace(str(existing_return))
-            raise ValueError(
-                f"incompatible existing return value. Expected: " +
-                f"{ret_stmt_str!r}, actual: {existing_return_str!r}"
-            )
+        ensure_annotations_equal("return value", ret_stmt, existing_return)
     elif function[offset] == _colon:
         function.insert(offset, new(_rarrow))
         function.insert(offset + 1, ret_stmt)
@@ -1215,11 +1211,12 @@ def ensure_no_annotation(ann):
 
 
 def ensure_annotations_equal(name, expected, actual):
+    """Raise ValueError if `expected` isn't equal to `new`."""
     if expected != actual:
         expected_annotation = minimize_whitespace(str(expected))
         actual_annotation = minimize_whitespace(str(actual))
         raise ValueError(
-            f"incompatible existing variable annotation for {name!r}. " +
+            f"incompatible existing {name}. " +
             f"Expected: {expected_annotation!r}, actual: {actual_annotation!r}"
         )
 
@@ -1355,13 +1352,8 @@ def get_annotated_param(node, arg, *, missing_ok=False):
         ann = convert_annotation(arg.annotation)
         ann.prefix = ' '
 
-    if actual_ann is not None and actual_ann != ann:
-        ann_str = minimize_whitespace(str(ann))
-        actual_ann_str = minimize_whitespace(str(actual_ann))
-        raise ValueError(
-            f"incompatible annotation for {arg.arg!r}. Expected: " +
-            f"{ann_str!r}, actual: {actual_ann_str!r}"
-        )
+    if actual_ann is not None:
+        ensure_annotations_equal("annotation for {arg.arg!r}", ann, actual_ann)
 
     return Node(syms.tname, [new(node), new(_colon), ann])
 
