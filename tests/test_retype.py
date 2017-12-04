@@ -18,8 +18,17 @@ from retype import (
 class RetypeTestCase(TestCase):
     maxDiff = None
 
-    def assertReapply(self, pyi_txt, src_txt, expected_txt, *, incremental=False):
+    def assertReapply(
+        self,
+        pyi_txt,
+        src_txt,
+        expected_txt,
+        *,
+        incremental=False,
+        replace_any=False,
+    ):
         Config.incremental = incremental
+        Config.replace_any = replace_any
         pyi = ast3.parse(dedent(pyi_txt))
         src = lib2to3_parse(dedent(src_txt))
         expected = lib2to3_parse(dedent(expected_txt))
@@ -30,9 +39,16 @@ class RetypeTestCase(TestCase):
         self.assertEqual(expected, src, f"\n{expected!r} != \n{src!r}")
 
     def assertReapplyVisible(
-        self, pyi_txt, src_txt, expected_txt, *, incremental=False
+        self,
+        pyi_txt,
+        src_txt,
+        expected_txt,
+        *,
+        incremental=False,
+        replace_any=False,
     ):
         Config.incremental = incremental
+        Config.replace_any = replace_any
         pyi = ast3.parse(dedent(pyi_txt))
         src = lib2to3_parse(dedent(src_txt))
         expected = lib2to3_parse(dedent(expected_txt))
@@ -47,9 +63,16 @@ class RetypeTestCase(TestCase):
         )
 
     def assertReapplyRaises(
-        self, pyi_txt, src_txt, expected_exception, *, incremental=False
+        self,
+        pyi_txt,
+        src_txt,
+        expected_exception,
+        *,
+        incremental=False,
+        replace_any=False,
     ):
         Config.incremental = incremental
+        Config.replace_any = replace_any
         with self.assertRaises(expected_exception) as ctx:
             pyi = ast3.parse(dedent(pyi_txt))
             src = lib2to3_parse(dedent(src_txt))
@@ -260,6 +283,30 @@ class FunctionReturnTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt, incremental=True)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, incremental=True)
 
+    def test_any_return_value_src_no_replace_any(self) -> None:
+        pyi_txt = "def fun() -> None: ...\n"
+        src_txt = "def fun() -> Any: ...\n"
+        exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
+        self.assertEqual(
+            "Annotation problem in function 'fun': 1:1: incompatible existing " +
+            "return value. Expected: 'None', actual: 'Any'",
+            str(exception),
+        )
+
+    def test_any_return_value_src_replace_any(self) -> None:
+        pyi_txt = "def fun() -> None: ...\n"
+        src_txt = "def fun() -> Any: ...\n"
+        expected_txt = "def fun() -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt, replace_any=True)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, replace_any=True)
+
+    def test_any_return_value_missing_pyi_src_replace_any(self) -> None:
+        pyi_txt = "def fun(): ...\n"
+        src_txt = "def fun() -> Any: ...\n"
+        expected_txt = "def fun() -> Any: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt, replace_any=True)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, replace_any=True)
+
 
 class FunctionArgumentTestCase(RetypeTestCase):
     def test_missing_ann_both(self) -> None:
@@ -367,6 +414,20 @@ class FunctionArgumentTestCase(RetypeTestCase):
         expected_txt = "def fun(a1: str) -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_missing_ann_pyi_replace_any(self) -> None:
+        pyi_txt = "def fun(a1) -> None: ...\n"
+        src_txt = "def fun(a1: Any) -> None: ...\n"
+        expected_txt = "def fun(a1: Any) -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt, replace_any=True)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, replace_any=True)
+
+    def test_missing_ann_src_replace_any(self) -> None:
+        pyi_txt = "def fun(a1: str) -> None: ...\n"
+        src_txt = "def fun(a1: Any) -> None: ...\n"
+        expected_txt = "def fun(a1: str) -> None: ...\n"
+        self.assertReapply(pyi_txt, src_txt, expected_txt, replace_any=True)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, replace_any=True)
 
     def test_no_args(self) -> None:
         pyi_txt = "def fun() -> None: ...\n"
@@ -535,6 +596,30 @@ class FunctionVariableTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
+    def test_basic_replace_any(self) -> None:
+        pyi_txt = """
+        def fun() -> None:
+            name: str
+        """
+        src_txt = """
+        def fun():
+            "Docstring"
+
+            name: Any = "Dinsdale"
+            print(name)
+            name = "Diinsdaalee"
+        """
+        expected_txt = """
+        def fun() -> None:
+            "Docstring"
+
+            name: str = "Dinsdale"
+            print(name)
+            name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt, replace_any=True)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, replace_any=True)
+
     def test_no_value(self) -> None:
         pyi_txt = """
         def fun() -> None:
@@ -684,6 +769,54 @@ class FunctionVariableTypeCommentTestCase(RetypeTestCase):
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_basic_src_comment(self) -> None:
+        pyi_txt = """
+        def fun() -> None:
+            name: str
+        """
+        src_txt = """
+        def fun():
+            "Docstring"
+
+            name = "Dinsdale"  # type: str
+            print(name)
+            name = "Diinsdaalee"
+        """
+        expected_txt = """
+        def fun() -> None:
+            "Docstring"
+
+            name: str = "Dinsdale"
+            print(name)
+            name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_basic_src_comment_replace_any(self) -> None:
+        pyi_txt = """
+        def fun() -> None:
+            name: str
+        """
+        src_txt = """
+        def fun():
+            "Docstring"
+
+            name = "Dinsdale"  # type: Any
+            print(name)
+            name = "Diinsdaalee"
+        """
+        expected_txt = """
+        def fun() -> None:
+            "Docstring"
+
+            name: str = "Dinsdale"
+            print(name)
+            name = "Diinsdaalee"
+        """
+        self.assertReapply(pyi_txt, src_txt, expected_txt, replace_any=True)
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, replace_any=True)
 
     def test_no_value(self) -> None:
         pyi_txt = """

@@ -15,6 +15,7 @@ Options:
   -i, --incremental           Allow for missing type annotations in both stubs
                               and the source.
   -q, --quiet                 Don't emit warnings, just errors.
+  -a, --replace-any           Allow replacing Any annotations.
   --hg                        Post-process source files to preserve
                               implicit byte literals.
   --traceback                 Show a Python traceback on error
@@ -138,6 +139,9 @@ MIT
 ## Change Log
 
 ### 17.12.0
+
+* support --replace-any to allow replacing pre-existing `Any` annotations
+  without raising errors
 
 * bugfix: don't re-apply `# type: ignore` as an annotation if followed
   by another comment.  Original patch by Shannon Zhu.

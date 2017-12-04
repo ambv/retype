@@ -63,6 +63,12 @@ Config = threading.local()
     help="Don't emit warnings, just errors.",
 )
 @click.option(
+    '-a',
+    '--replace-any',
+    is_flag=True,
+    help="Allow replacing Any annotations.",
+)
+@click.option(
     '--hg',
     is_flag=True,
     help="Post-process files to preserve implicit byte literals.",
@@ -78,9 +84,10 @@ Config = threading.local()
     type=Directory(file_okay=True),
 )
 @click.version_option(version=__version__)
-def main(src, pyi_dir, target_dir, incremental, quiet, hg, traceback):
+def main(src, pyi_dir, target_dir, incremental, quiet, replace_any, hg, traceback):
     """Re-apply type annotations from .pyi stubs to your codebase."""
     Config.incremental = incremental
+    Config.replace_any = replace_any
     returncode = 0
     for src_entry in src:
         for file, error, exc_type, tb in retype_path(
@@ -397,7 +404,7 @@ def _r_annassign(annassign, body):
                     raise NotImplementedError(
                         f"unexpected element after annotation: {str(expr[3])}"
                     )
-                ensure_annotations_equal(
+                expr[1].children[1] = maybe_replace_any_if_equal(
                     f"variable annotation for {name!r}",
                     annotation,
                     expr[1].children[1],
@@ -506,9 +513,7 @@ def _r_assign(assign, body):
             expr[0].value == name and
             expr[1] == _eq
         ):
-            actual_value = expr[2]
-            ensure_annotations_equal(f"alias {name!r}", value, actual_value)
-
+            expr[2] = maybe_replace_any_if_equal(f"alias {name!r}", value, expr[2])
             break
     else:
         # We need to defer placing aliases because we need to place them
@@ -1032,8 +1037,9 @@ def annotate_return(function, ast_returns, offset):
     ret_stmt = convert_annotation(ast_returns)
     ret_stmt.prefix = " "
     if function[offset] == _rarrow:
-        existing_return = function[offset + 1]
-        ensure_annotations_equal("return value", ret_stmt, existing_return)
+        function[offset + 1] = maybe_replace_any_if_equal(
+            "return value", ret_stmt, function[offset + 1]
+        )
     elif function[offset] == _colon:
         function.insert(offset, new(_rarrow))
         function.insert(offset + 1, ret_stmt)
@@ -1203,6 +1209,38 @@ def copy_type_comment_to_annotation(arg):
     arg.annotation = ann
 
 
+def maybe_replace_any_if_equal(name, expected, actual):
+    """Return the type given in `expected`.
+
+    Raise ValueError if `expected` isn't equal to `actual`.  If --replace-any is
+    used, the Any type in `actual` is considered equal.
+
+    The implementation is naively checking if the string representation of
+    `actual` is one of "Any", "typing.Any", or "t.Any".  This is done for two
+    reasons:
+
+    1. I'm lazy.
+    2. We want people to be able to explicitly state that they want Any without it
+       being replaced.  This way they can use an alias.
+    """
+    is_equal = expected == actual
+    if not is_equal and Config.replace_any:
+        actual_str = minimize_whitespace(str(actual))
+        if actual_str and actual_str[0] in {'"', "'"}:
+            actual_str = actual_str[1:-1]
+        is_equal = actual_str in {'Any', 'typing.Any', 't.Any'}
+
+    if not is_equal:
+        expected_annotation = minimize_whitespace(str(expected))
+        actual_annotation = minimize_whitespace(str(actual))
+        raise ValueError(
+            f"incompatible existing {name}. " +
+            f"Expected: {expected_annotation!r}, actual: {actual_annotation!r}"
+        )
+
+    return expected or actual
+
+
 def ensure_no_annotation(ann):
     if ann:
         raise ValueError(
@@ -1211,14 +1249,11 @@ def ensure_no_annotation(ann):
 
 
 def ensure_annotations_equal(name, expected, actual):
-    """Raise ValueError if `expected` isn't equal to `new`."""
-    if expected != actual:
-        expected_annotation = minimize_whitespace(str(expected))
-        actual_annotation = minimize_whitespace(str(actual))
-        raise ValueError(
-            f"incompatible existing {name}. " +
-            f"Expected: {expected_annotation!r}, actual: {actual_annotation!r}"
-        )
+    """Raise ValueError if `expected` isn't equal to `actual`.
+
+    If --replace-any is used, the Any type in `actual` is considered equal.
+    """
+    maybe_replace_any_if_equal(name, expected, actual)
 
 
 def remove_function_signature_type_comment(body):
