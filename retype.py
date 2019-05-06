@@ -7,7 +7,7 @@ from lib2to3.pgen2 import driver
 from lib2to3.pgen2 import token
 from lib2to3.pgen2.parse import ParseError
 from lib2to3.pygram import python_symbols as syms
-from lib2to3.pytree import Node, Leaf, type_repr
+from lib2to3.pytree import Node, Leaf
 from pathlib import Path
 import re
 import sys

@@ -62,3 +62,6 @@ target/
 .ipynb_checkpoints
 
 typed-src/
+
+pip-wheel-metadata
+.mypy_cache

@@ -1,8 +1,0 @@
-# This is an example .flake8 config, used when developing bugbear itself.
-# Keep in sync with setup.cfg which is used for source packages.
-
-[flake8]
-ignore = E302, E501
-max-line-length = 80
-max-complexity = 12
-select = B,C,E,F,T4,W,B9
