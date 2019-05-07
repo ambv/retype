@@ -1,14 +1,44 @@
-sudo: false
+dist: xenial
 language: python
-before_script:
-- pip install -e .
-# test script
-script:  python setup.py test
-notifications:
-  on_success: change
-  on_failure: always
-matrix:
+cache: pip
+
+env:
+  TOXENV=py
+
+jobs:
   include:
-    - python: 3.6
-    - python: 3.6-dev
-    - python: 3.7-dev
+  - name: "check wheel metadata correct"
+    python: 3.7
+    env:
+    - TOXENV=package_readme
+  - name: "type checker"
+    python: 3.7
+    env:
+    - TOXENV=type
+  - name: "style checker"
+    python: 3.7
+    env:
+    - TOXENV=lint
+  - name: "test dev env creation"
+    python: 3.7
+    env:
+    - TOXENV=dev
+  - name: "format checker"
+    python: 3.7
+    env:
+    - TOXENV=format-check
+  - name: "run test suite with python 3.6"
+    python: 3.6
+  - name: "run test suite with python 3.7"
+    python: 3.7
+  - name: "run test suite with python 3.8-dev"
+    python: 3.8-dev
+
+install:
+- sudo apt-get -y install pandoc
+- pip install -U pip setuptools
+- pip install -U --force-reinstall tox==3.9.0
+- tox --notest --skip-missing-interpreters false -vv
+
+script:
+- tox

@@ -43,7 +43,7 @@ except ImportError:
             """
             nested = 0
             for j in range(i + 2, len(tokens)):
-                if _isop(j, ')', ']', '}'):
+                if _isop(j, ")", "]", "}"):
                     # end of call, tuple, subscription or dict / set
                     nested -= 1
                     if nested < 0:
@@ -51,9 +51,9 @@ except ImportError:
                 elif n == 0:
                     # this is the starting position of arg
                     return j
-                elif _isop(j, '(', '[', '{'):
+                elif _isop(j, "(", "[", "{"):
                     nested += 1
-                elif _isop(j, ',') and nested == 0:
+                elif _isop(j, ",") and nested == 0:
                     n -= 1
 
             return None
@@ -70,7 +70,7 @@ except ImportError:
             """
             st = tokens[j]
             if st.type == token.STRING and st.string.startswith(("'", '"')):
-                tokens[j] = st._replace(string='u%s' % st.string)
+                tokens[j] = st._replace(string="u%s" % st.string)
 
         for i, t in enumerate(tokens):
             # Convert most string literals to byte literals. String literals
@@ -101,44 +101,49 @@ except ImportError:
                     continue
 
                 # String literal. Prefix to make a b'' string.
-                yield t._replace(string='b%s' % t.string)
+                yield t._replace(string="b%s" % t.string)
                 continue
 
             # Insert compatibility imports at "from __future__ import" line.
             # No '\n' should be added to preserve line numbers.
-            if (t.type == token.NAME and t.string == 'import' and
-                all(u.type == token.NAME for u in tokens[i - 2:i]) and
-                [u.string for u in tokens[i - 2:i]] == ['from', '__future__']):
+            if (
+                t.type == token.NAME
+                and t.string == "import"
+                and all(u.type == token.NAME for u in tokens[i - 2 : i])
+                and [u.string for u in tokens[i - 2 : i]] == ["from", "__future__"]
+            ):
                 futureimpline = True
             if t.type == token.NEWLINE and futureimpline:
                 futureimpline = False
-                if fullname == 'mercurial.pycompat':
+                if fullname == "mercurial.pycompat":
                     yield t
                     continue
                 r, c = t.start
-                l = (b'; from mercurial.pycompat import '
-                     b'delattr, getattr, hasattr, setattr, xrange, open\n')
+                l = (
+                    b"; from mercurial.pycompat import "
+                    b"delattr, getattr, hasattr, setattr, xrange, open\n"
+                )
                 for u in tokenize.tokenize(io.BytesIO(l).readline):
                     if u.type in (tokenize.ENCODING, token.ENDMARKER):
                         continue
-                    yield u._replace(
-                        start=(r, c + u.start[1]), end=(r, c + u.end[1]))
+                    yield u._replace(start=(r, c + u.start[1]), end=(r, c + u.end[1]))
                 continue
 
             # This looks like a function call.
-            if t.type == token.NAME and _isop(i + 1, '('):
+            if t.type == token.NAME and _isop(i + 1, "("):
                 fn = t.string
 
                 # *attr() builtins don't accept byte strings to 2nd argument.
-                if (fn in ('getattr', 'setattr', 'hasattr', 'safehasattr') and
-                        not _isop(i - 1, '.')):
+                if fn in ("getattr", "setattr", "hasattr", "safehasattr") and not _isop(
+                    i - 1, "."
+                ):
                     arg1idx = _findargnofcall(1)
                     if arg1idx is not None:
                         _ensureunicode(arg1idx)
 
                 # .encode() and .decode() on str/bytes/unicode don't accept
                 # byte strings on Python 3.
-                elif fn in ('encode', 'decode') and _isop(i - 1, '.'):
+                elif fn in ("encode", "decode") and _isop(i - 1, "."):
                     for argn in range(2):
                         argidx = _findargnofcall(argn)
                         if argidx is not None:
@@ -146,8 +151,8 @@ except ImportError:
 
                 # It changes iteritems to items as iteritems is not
                 # present in Python 3 world.
-                elif fn == 'iteritems':
-                    yield t._replace(string='items')
+                elif fn == "iteritems":
+                    yield t._replace(string="items")
                     continue
 
             # Emit unmodified token.
@@ -160,9 +165,9 @@ def apply_job_security(code):
     The implementation is horribly inefficient but the goal is to be compatible
     with what Mercurial does at runtime.
     """
-    buf = io.BytesIO(code.encode('utf8'))
+    buf = io.BytesIO(code.encode("utf8"))
     tokens = tokenize.tokenize(buf.readline)
     # NOTE: by setting the fullname to `mercurial.pycompat` below, we're
     # ensuring that hg-specific pycompat imports aren't inserted to the code.
-    data = tokenize.untokenize(replacetokens(list(tokens), 'mercurial.pycompat'))
-    return cast(str, data.decode('utf8'))
+    data = tokenize.untokenize(replacetokens(list(tokens), "mercurial.pycompat"))
+    return cast(str, data.decode("utf8"))
