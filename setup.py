@@ -37,7 +37,9 @@ _version_re = re.compile(r"__version__\s+=\s+(?P<version>.*)")
 
 
 with open(os.path.join(current_dir, "retype.py"), "r", encoding="utf8") as f:
-    version = _version_re.search(f.read()).group("version")
+    match = _version_re.search(f.read())
+    assert match is not None
+    version = match.group("version")
     version = str(ast.literal_eval(version))
 
 
