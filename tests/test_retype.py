@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 
 from textwrap import dedent
-from unittest import main, TestCase
+from unittest import TestCase, main
 
 from typed_ast import ast3
 
 from retype import (
     Config,
+    _type_comment_re,
     fix_remaining_type_comments,
     lib2to3_parse,
     reapply_all,
     serialize_attribute,
-    _type_comment_re,
 )
 
 
@@ -19,13 +19,7 @@ class RetypeTestCase(TestCase):
     maxDiff = None
 
     def assertReapply(
-        self,
-        pyi_txt,
-        src_txt,
-        expected_txt,
-        *,
-        incremental=False,
-        replace_any=False,
+        self, pyi_txt, src_txt, expected_txt, *, incremental=False, replace_any=False
     ):
         Config.incremental = incremental
         Config.replace_any = replace_any
@@ -39,13 +33,7 @@ class RetypeTestCase(TestCase):
         self.assertEqual(expected, src, f"\n{expected!r} != \n{src!r}")
 
     def assertReapplyVisible(
-        self,
-        pyi_txt,
-        src_txt,
-        expected_txt,
-        *,
-        incremental=False,
-        replace_any=False,
+        self, pyi_txt, src_txt, expected_txt, *, incremental=False, replace_any=False
     ):
         Config.incremental = incremental
         Config.replace_any = replace_any
@@ -57,9 +45,7 @@ class RetypeTestCase(TestCase):
         fix_remaining_type_comments(src)
         self.longMessage = False
         self.assertEqual(
-            str(expected),
-            str(src),
-            f"\n{str(expected)!r} != \n{str(src)!r}",
+            str(expected), str(src), f"\n{str(expected)!r} != \n{str(src)!r}"
         )
 
     def assertReapplyRaises(
@@ -177,8 +163,8 @@ class FunctionReturnTestCase(RetypeTestCase):
         src_txt = "def fun(): ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 1:1: .pyi file is missing " +
-            "return value and source doesn't provide it either",
+            "Annotation problem in function 'fun': 1:1: .pyi file is missing "
+            + "return value and source doesn't provide it either",
             str(exception),
         )
 
@@ -222,8 +208,8 @@ class FunctionReturnTestCase(RetypeTestCase):
         src_txt = "def fun() -> List[int]: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 1:1: incompatible existing " +
-            "return value. Expected: 'List[Tuple[int, int]]', actual: 'List[int]'",
+            "Annotation problem in function 'fun': 1:1: incompatible existing "
+            + "return value. Expected: 'List[Tuple[int, int]]', actual: 'List[int]'",
             str(exception),
         )
 
@@ -288,8 +274,8 @@ class FunctionReturnTestCase(RetypeTestCase):
         src_txt = "def fun() -> Any: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 1:1: incompatible existing " +
-            "return value. Expected: 'None', actual: 'Any'",
+            "Annotation problem in function 'fun': 1:1: incompatible existing "
+            + "return value. Expected: 'None', actual: 'Any'",
             str(exception),
         )
 
@@ -314,8 +300,8 @@ class FunctionArgumentTestCase(RetypeTestCase):
         src_txt = "def fun(a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 1:1: .pyi file is missing " +
-            "annotation for 'a1' and source doesn't provide it either",
+            "Annotation problem in function 'fun': 1:1: .pyi file is missing "
+            + "annotation for 'a1' and source doesn't provide it either",
             str(exception),
         )
 
@@ -324,8 +310,8 @@ class FunctionArgumentTestCase(RetypeTestCase):
         src_txt = "def fun(a2) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 1:1: .pyi file expects " +
-            "argument 'a1' next but argument 'a2' found in source",
+            "Annotation problem in function 'fun': 1:1: .pyi file expects "
+            + "argument 'a1' next but argument 'a2' found in source",
             str(exception),
         )
 
@@ -334,8 +320,8 @@ class FunctionArgumentTestCase(RetypeTestCase):
         src_txt = "def fun(*, a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 1:1: " +
-            "missing regular argument 'a1' in source",
+            "Annotation problem in function 'fun': 1:1: "
+            + "missing regular argument 'a1' in source",
             str(exception),
         )
 
@@ -344,8 +330,8 @@ class FunctionArgumentTestCase(RetypeTestCase):
         src_txt = "def fun(a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 1:1: " +
-            ".pyi file expects *args or keyword-only arguments in source",
+            "Annotation problem in function 'fun': 1:1: "
+            + ".pyi file expects *args or keyword-only arguments in source",
             str(exception),
         )
 
@@ -354,8 +340,8 @@ class FunctionArgumentTestCase(RetypeTestCase):
         src_txt = "def fun(a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 1:1: " +
-            "extra arguments in source: a1",
+            "Annotation problem in function 'fun': 1:1: "
+            + "extra arguments in source: a1",
             str(exception),
         )
 
@@ -364,8 +350,8 @@ class FunctionArgumentTestCase(RetypeTestCase):
         src_txt = "def fun(a1=None) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 1:1: " +
-            "extra arguments in source: a1=None",
+            "Annotation problem in function 'fun': 1:1: "
+            + "extra arguments in source: a1=None",
             str(exception),
         )
 
@@ -374,8 +360,8 @@ class FunctionArgumentTestCase(RetypeTestCase):
         src_txt = "def fun(*, a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 1:1: " +
-            "extra arguments in source: *, a1",
+            "Annotation problem in function 'fun': 1:1: "
+            + "extra arguments in source: *, a1",
             str(exception),
         )
 
@@ -384,9 +370,9 @@ class FunctionArgumentTestCase(RetypeTestCase):
         src_txt = "def fun(a1) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 1:1: " +
-            "source file does not specify default value for arg `a1` but the " +
-            ".pyi file does",
+            "Annotation problem in function 'fun': 1:1: "
+            + "source file does not specify default value for arg `a1` but the "
+            + ".pyi file does",
             str(exception),
         )
 
@@ -395,9 +381,9 @@ class FunctionArgumentTestCase(RetypeTestCase):
         src_txt = "def fun(a1=None) -> None: ...\n"
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 1:1: " +
-            ".pyi file does not specify default value for arg `a1` but the " +
-            "source does",
+            "Annotation problem in function 'fun': 1:1: "
+            + ".pyi file does not specify default value for arg `a1` but the "
+            + "source does",
             str(exception),
         )
 
@@ -453,19 +439,25 @@ class FunctionArgumentTestCase(RetypeTestCase):
     def test_complex_sig1(self) -> None:
         pyi_txt = "def fun(a1: str, *args: str, kwonly1: int, **kwargs) -> None: ...\n"
         src_txt = "def fun(a1, *args, kwonly1=None, **kwargs) -> None: ...\n"
-        expected_txt = "def fun(a1: str, *args: str, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
+        expected_txt = (
+            "def fun(a1: str, *args: str, kwonly1: int = None, **kwargs) -> None: ...\n"
+        )  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_complex_sig2(self) -> None:
         pyi_txt = "def fun(a1: str, *, kwonly1: int, **kwargs) -> None: ...\n"
         src_txt = "def fun(a1, *, kwonly1=None, **kwargs) -> None: ...\n"
-        expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
+        expected_txt = (
+            "def fun(a1: str, *, kwonly1: int = None, **kwargs) -> None: ...\n"
+        )  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
     def test_complex_sig_async(self) -> None:
-        pyi_txt = "async def fun(a1: str, *args: str, kwonly1: int, **kwargs) -> None: ...\n"
+        pyi_txt = (
+            "async def fun(a1: str, *args: str, kwonly1: int, **kwargs) -> None: ...\n"
+        )
         src_txt = "async def fun(a1, *args, kwonly1=None, **kwargs) -> None: ...\n"
         expected_txt = "async def fun(a1: str, *args: str, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
@@ -489,7 +481,9 @@ class FunctionArgumentTestCase(RetypeTestCase):
             ...
         """
         src_txt = "def fun(a1, *, kwonly1=None, **kwargs) -> None: ...\n"
-        expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs: Any) -> None: ...\n"  # noqa
+        expected_txt = (
+            "def fun(a1: str, *, kwonly1: int = None, **kwargs: Any) -> None: ...\n"
+        )  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
@@ -516,7 +510,9 @@ class FunctionArgumentTestCase(RetypeTestCase):
             ...
         """
         src_txt = "def fun(a1, *, kwonly1=None, **kwargs): ...\n"
-        expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs: Any) -> None: ...\n"  # noqa
+        expected_txt = (
+            "def fun(a1: str, *, kwonly1: int = None, **kwargs: Any) -> None: ...\n"
+        )  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
@@ -553,23 +549,24 @@ class FunctionArgumentTestCase(RetypeTestCase):
     def test_missing_ann_both_incremental(self) -> None:
         pyi_txt = "def fun(a1) -> None: ...\n"
         src_txt = "def fun(a1) -> None: ...\n"
-        expected_txt= "def fun(a1) -> None: ...\n"
+        expected_txt = "def fun(a1) -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt, incremental=True)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, incremental=True)
 
     def test_missing_ann_both_multiple_args_incremental(self) -> None:
         pyi_txt = "def fun(a1, a2, *a3, **a4) -> None: ...\n"
         src_txt = "def fun(a1, a2, *a3, **a4) -> None: ...\n"
-        expected_txt= "def fun(a1, a2, *a3, **a4) -> None: ...\n"
+        expected_txt = "def fun(a1, a2, *a3, **a4) -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt, incremental=True)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, incremental=True)
 
     def test_missing_ann_both_incremental_default_value_whitespace(self) -> None:
         pyi_txt = "def fun(a1=..., a2: int = 0) -> None: ...\n"
         src_txt = "def fun(a1=False, a2=0) -> None: ...\n"
-        expected_txt= "def fun(a1=False, a2: int = 0) -> None: ...\n"
+        expected_txt = "def fun(a1=False, a2: int = 0) -> None: ...\n"
         self.assertReapply(pyi_txt, src_txt, expected_txt, incremental=True)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt, incremental=True)
+
 
 class FunctionVariableTestCase(RetypeTestCase):
     def test_basic(self) -> None:
@@ -685,9 +682,9 @@ class FunctionVariableTestCase(RetypeTestCase):
         """
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 2:1: " +
-            "incompatible existing variable annotation for 'name'. " +
-            "Expected: 'str', actual: 'int'",
+            "Annotation problem in function 'fun': 2:1: "
+            + "incompatible existing variable annotation for 'name'. "
+            + "Expected: 'str', actual: 'int'",
             str(exception),
         )
 
@@ -907,9 +904,9 @@ class FunctionVariableTypeCommentTestCase(RetypeTestCase):
         """
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 2:1: " +
-            "incompatible existing variable annotation for 'name'. " +
-            "Expected: 'str', actual: 'int'",
+            "Annotation problem in function 'fun': 2:1: "
+            + "incompatible existing variable annotation for 'name'. "
+            + "Expected: 'str', actual: 'int'",
             str(exception),
         )
 
@@ -1045,10 +1042,7 @@ class MethodTestCase(RetypeTestCase):
                 print("I am not a method")
         """
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
-        self.assertEqual(
-            "Class 'C' not found in source.",
-            str(exception),
-        )
+        self.assertEqual("Class 'C' not found in source.", str(exception))
 
     def test_staticmethod(self) -> None:
         pyi_txt = """
@@ -1067,8 +1061,8 @@ class MethodTestCase(RetypeTestCase):
         """
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'method': 6:1: .pyi file is " +
-            "missing annotation for 'a1' and source doesn't provide it either",
+            "Annotation problem in function 'method': 6:1: .pyi file is "
+            + "missing annotation for 'a1' and source doesn't provide it either",
             str(exception),
         )
 
@@ -1087,8 +1081,8 @@ class MethodTestCase(RetypeTestCase):
         """
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Incompatible method kind for 'method': 4:1: Expected: " +
-            "staticmethod, actual: classmethod",
+            "Incompatible method kind for 'method': 4:1: Expected: "
+            + "staticmethod, actual: classmethod",
             str(exception),
         )
 
@@ -1106,8 +1100,8 @@ class MethodTestCase(RetypeTestCase):
         """
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Incompatible method kind for 'method': 4:1: Expected: " +
-            "staticmethod, actual: instancemethod",
+            "Incompatible method kind for 'method': 4:1: Expected: "
+            + "staticmethod, actual: instancemethod",
             str(exception),
         )
 
@@ -1125,8 +1119,8 @@ class MethodTestCase(RetypeTestCase):
         """
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Incompatible method kind for 'method': 4:1: Expected: " +
-            "instancemethod, actual: staticmethod",
+            "Incompatible method kind for 'method': 4:1: Expected: "
+            + "instancemethod, actual: staticmethod",
             str(exception),
         )
 
@@ -1347,9 +1341,9 @@ class MethodVariableTestCase(RetypeTestCase):
         """
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 3:1: " +
-            "incompatible existing variable annotation for 'name'. " +
-            "Expected: 'str', actual: 'int'",
+            "Annotation problem in function 'fun': 3:1: "
+            + "incompatible existing variable annotation for 'name'. "
+            + "Expected: 'str', actual: 'int'",
             str(exception),
         )
 
@@ -1519,9 +1513,9 @@ class MethodVariableTypeCommentTestCase(RetypeTestCase):
         """
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "Annotation problem in function 'fun': 3:1: " +
-            "incompatible existing variable annotation for 'name'. " +
-            "Expected: 'str', actual: 'int'",
+            "Annotation problem in function 'fun': 3:1: "
+            + "incompatible existing variable annotation for 'name'. "
+            + "Expected: 'str', actual: 'int'",
             str(exception),
         )
 
@@ -1639,8 +1633,8 @@ class ModuleLevelVariableTestCase(RetypeTestCase):
         """
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "incompatible existing variable annotation for 'name'. " +
-            "Expected: 'str', actual: 'int'",
+            "incompatible existing variable annotation for 'name'. "
+            + "Expected: 'str', actual: 'int'",
             str(exception),
         )
 
@@ -1971,8 +1965,8 @@ class ClassVariableTestCase(RetypeTestCase):
         """
         exception = self.assertReapplyRaises(pyi_txt, src_txt, ValueError)
         self.assertEqual(
-            "incompatible existing variable annotation for 'name'. " +
-            "Expected: 'str', actual: 'int'",
+            "incompatible existing variable annotation for 'name'. "
+            + "Expected: 'str', actual: 'int'",
             str(exception),
         )
 
@@ -2274,6 +2268,7 @@ class PrintStmtTestCase(RetypeTestCase):
             str(exception),
         )
 
+
 class ParseErrorTestCase(RetypeTestCase):
     def test_missing_trailing_newline_crash(self) -> None:
         pyi_txt = "def f() -> None: ...\n"
@@ -2286,6 +2281,7 @@ class ParseErrorTestCase(RetypeTestCase):
         """
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
 
 class PostProcessTestCase(RetypeTestCase):
     def test_straddling_variable_comments(self) -> None:
@@ -2462,78 +2458,78 @@ class TypeCommentReTestCase(TestCase):
     def assertMatch(self, input, *, type, nl):
         m = _type_comment_re.match(input)
         self.assertIsNotNone(m)
-        self.assertEqual(m.group('type'), type)
-        self.assertEqual(m.group('nl'), nl)
+        self.assertEqual(m.group("type"), type)
+        self.assertEqual(m.group("nl"), nl)
 
     def assertNoMatch(self, input):
         m = _type_comment_re.match(input)
         self.assertIsNone(m)
 
     def test_ignore(self):
-        self.assertNoMatch('# type:ignore')
-        self.assertNoMatch('# type: ignore')
-        self.assertNoMatch('# type: ignore\n')
-        self.assertNoMatch('# type: ignore ')
-        self.assertNoMatch('# type: ignore \n')
+        self.assertNoMatch("# type:ignore")
+        self.assertNoMatch("# type: ignore")
+        self.assertNoMatch("# type: ignore\n")
+        self.assertNoMatch("# type: ignore ")
+        self.assertNoMatch("# type: ignore \n")
 
     def test_ignore_with_comment(self):
-        self.assertNoMatch('# type: ignore#wut')
-        self.assertNoMatch('# type: ignore#wut\n')
-        self.assertNoMatch('# type: ignore#wut ')
-        self.assertNoMatch('# type: ignore#wut \n')
-        self.assertNoMatch('# type: ignore #wut \n')
-        self.assertNoMatch('# type: ignore # wut \n')
-        self.assertNoMatch('# type: ignore  # wut \n')
-        self.assertNoMatch('# type: ignore    # wut \n')
+        self.assertNoMatch("# type: ignore#wut")
+        self.assertNoMatch("# type: ignore#wut\n")
+        self.assertNoMatch("# type: ignore#wut ")
+        self.assertNoMatch("# type: ignore#wut \n")
+        self.assertNoMatch("# type: ignore #wut \n")
+        self.assertNoMatch("# type: ignore # wut \n")
+        self.assertNoMatch("# type: ignore  # wut \n")
+        self.assertNoMatch("# type: ignore    # wut \n")
 
     def test_no_whitespace_after_colon(self):
-        self.assertMatch('# type:int', type='int', nl='')
-        self.assertMatch('# type:int\n', type='int', nl='\n')
-        self.assertMatch('  # type:int\n', type='int', nl='\n')
-        self.assertMatch('# type:int  \n', type='int', nl='\n')
-        self.assertMatch('  # type:int  \n', type='int', nl='\n')
+        self.assertMatch("# type:int", type="int", nl="")
+        self.assertMatch("# type:int\n", type="int", nl="\n")
+        self.assertMatch("  # type:int\n", type="int", nl="\n")
+        self.assertMatch("# type:int  \n", type="int", nl="\n")
+        self.assertMatch("  # type:int  \n", type="int", nl="\n")
 
     def test_simple_type(self):
-        self.assertMatch('# type: int', type='int', nl='')
-        self.assertMatch('# type: int\n', type='int', nl='\n')
-        self.assertMatch('  # type: int\n', type='int', nl='\n')
-        self.assertMatch('# type: int  \n', type='int', nl='\n')
-        self.assertMatch('  # type: int  \n', type='int', nl='\n')
+        self.assertMatch("# type: int", type="int", nl="")
+        self.assertMatch("# type: int\n", type="int", nl="\n")
+        self.assertMatch("  # type: int\n", type="int", nl="\n")
+        self.assertMatch("# type: int  \n", type="int", nl="\n")
+        self.assertMatch("  # type: int  \n", type="int", nl="\n")
 
     def test_simple_type_with_comment(self):
-        self.assertMatch('# type: int#wut', type='int', nl='#wut')
-        self.assertMatch('# type: int#wut\n', type='int', nl='#wut\n')
-        self.assertMatch('  # type: int#wut\n', type='int', nl='#wut\n')
-        self.assertMatch('# type: int  #wut\n', type='int', nl='#wut\n')
-        self.assertMatch('  # type: int  # wut \n', type='int', nl='# wut \n')
+        self.assertMatch("# type: int#wut", type="int", nl="#wut")
+        self.assertMatch("# type: int#wut\n", type="int", nl="#wut\n")
+        self.assertMatch("  # type: int#wut\n", type="int", nl="#wut\n")
+        self.assertMatch("# type: int  #wut\n", type="int", nl="#wut\n")
+        self.assertMatch("  # type: int  # wut \n", type="int", nl="# wut \n")
 
     def test_complex_type(self):
         self.assertMatch(
-            '# type: Dict[str, Union[str, int, None]]',
-            type='Dict[str, Union[str, int, None]]',
-            nl='',
+            "# type: Dict[str, Union[str, int, None]]",
+            type="Dict[str, Union[str, int, None]]",
+            nl="",
         )
         self.assertMatch(
-            '# type: Dict[str, Union[str, int, None]]\n',
-            type='Dict[str, Union[str, int, None]]',
-            nl='\n',
+            "# type: Dict[str, Union[str, int, None]]\n",
+            type="Dict[str, Union[str, int, None]]",
+            nl="\n",
         )
         self.assertMatch(
-            '  # type: Dict[str, Union[str, int, None]]\n',
-            type='Dict[str, Union[str, int, None]]',
-            nl='\n',
+            "  # type: Dict[str, Union[str, int, None]]\n",
+            type="Dict[str, Union[str, int, None]]",
+            nl="\n",
         )
         self.assertMatch(
-            '# type: Dict[str, Union[str, int, None]]  \n',
-            type='Dict[str, Union[str, int, None]]',
-            nl='\n',
+            "# type: Dict[str, Union[str, int, None]]  \n",
+            type="Dict[str, Union[str, int, None]]",
+            nl="\n",
         )
         self.assertMatch(
-            '  # type: Dict[str, Union[str, int, None]]  \n',
-            type='Dict[str, Union[str, int, None]]',
-            nl='\n',
+            "  # type: Dict[str, Union[str, int, None]]  \n",
+            type="Dict[str, Union[str, int, None]]",
+            nl="\n",
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

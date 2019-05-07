@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 """Re-apply type annotations from .pyi stubs to your codebase."""
 
-from functools import partial, singledispatch
-from lib2to3 import pygram, pytree
-from lib2to3.pgen2 import driver
-from lib2to3.pgen2 import token
-from lib2to3.pgen2.parse import ParseError
-from lib2to3.pygram import python_symbols as syms
-from lib2to3.pytree import Node, Leaf
-from pathlib import Path
 import re
 import sys
 import threading
 import tokenize
 import traceback
+from functools import partial, singledispatch
+from lib2to3 import pygram, pytree
+from lib2to3.pgen2 import driver, token
+from lib2to3.pgen2.parse import ParseError
+from lib2to3.pygram import python_symbols as syms
+from lib2to3.pytree import Leaf, Node
+from pathlib import Path
 
 import click
 from typed_ast import ast3
 
-__version__ = "17.12.0"
+__version__ = "19.5.0"
 
 Directory = partial(
     click.Path,
@@ -35,54 +34,36 @@ Config = threading.local()
 
 @click.command()
 @click.option(
-    '-p',
-    '--pyi-dir',
+    "-p",
+    "--pyi-dir",
     type=Directory(),
-    default='types',
-    help='Where to find .pyi stubs.',
+    default="types",
+    help="Where to find .pyi stubs.",
     show_default=True,
 )
 @click.option(
-    '-t',
-    '--target-dir',
+    "-t",
+    "--target-dir",
     type=Directory(exists=False, writable=True),
-    default='typed-src',
-    help='Where to write annotated sources.',
+    default="typed-src",
+    help="Where to write annotated sources.",
     show_default=True,
 )
 @click.option(
-    '-i',
-    '--incremental',
+    "-i",
+    "--incremental",
     is_flag=True,
     help="Allow for missing type annotations in both stubs and the source.",
 )
+@click.option("-q", "--quiet", is_flag=True, help="Don't emit warnings, just errors.")
 @click.option(
-    '-q',
-    '--quiet',
-    is_flag=True,
-    help="Don't emit warnings, just errors.",
+    "-a", "--replace-any", is_flag=True, help="Allow replacing Any annotations."
 )
 @click.option(
-    '-a',
-    '--replace-any',
-    is_flag=True,
-    help="Allow replacing Any annotations.",
+    "--hg", is_flag=True, help="Post-process files to preserve implicit byte literals."
 )
-@click.option(
-    '--hg',
-    is_flag=True,
-    help="Post-process files to preserve implicit byte literals.",
-)
-@click.option(
-    '--traceback',
-    is_flag=True,
-    help="Show a Python traceback on error.",
-)
-@click.argument(
-    'src',
-    nargs=-1,
-    type=Directory(file_okay=True),
-)
+@click.option("--traceback", is_flag=True, help="Show a Python traceback on error.")
+@click.argument("src", nargs=-1, type=Directory(file_okay=True))
 @click.version_option(version=__version__)
 def main(src, pyi_dir, target_dir, incremental, quiet, replace_any, hg, traceback):
     """Re-apply type annotations from .pyi stubs to your codebase."""
@@ -98,15 +79,15 @@ def main(src, pyi_dir, target_dir, incremental, quiet, replace_any, hg, tracebac
             quiet=quiet,
             hg=hg,
         ):
-            print(f'error: {file}: {error}', file=sys.stderr)
+            print(f"error: {file}: {error}", file=sys.stderr)
             if traceback:
-                print('Traceback (most recent call last):', file=sys.stderr)
+                print("Traceback (most recent call last):", file=sys.stderr)
                 for line in tb:
-                    print(line, file=sys.stderr, end='')
-                print(f'{exc_type.__name__}: {error}', file=sys.stderr)
+                    print(line, file=sys.stderr, end="")
+                print(f"{exc_type.__name__}: {error}", file=sys.stderr)
             returncode += 1
     if not src and not quiet:
-        print('warning: no sources given', file=sys.stderr)
+        print("warning: no sources given", file=sys.stderr)
 
     # According to http://tldp.org/LDP/abs/html/index.html starting with 126
     # we have special returncodes.
@@ -122,18 +103,13 @@ def retype_path(
             if child == pyi_dir or child == targets:
                 continue
             yield from retype_path(
-                child, pyi_dir / src.name, targets / src.name, quiet=quiet, hg=hg,
+                child, pyi_dir / src.name, targets / src.name, quiet=quiet, hg=hg
             )
-    elif src.suffix == '.py' or src_explicitly_given:
+    elif src.suffix == ".py" or src_explicitly_given:
         try:
             retype_file(src, pyi_dir, targets, quiet=quiet, hg=hg)
         except Exception as e:
-            yield (
-                src,
-                str(e),
-                type(e),
-                traceback.format_tb(e.__traceback__),
-            )
+            yield (src, str(e), type(e), traceback.format_tb(e.__traceback__))
 
 
 def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False):
@@ -150,12 +126,12 @@ def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False):
         src_encoding = src_buffer.encoding
         src_node = lib2to3_parse(src_buffer.read())
     try:
-        with open((pyi_dir / src.name).with_suffix('.pyi')) as pyi_file:
+        with open((pyi_dir / src.name).with_suffix(".pyi")) as pyi_file:
             pyi_txt = pyi_file.read()
     except FileNotFoundError:
         if not quiet:
             print(
-                f'warning: .pyi file for source {src} not found in {pyi_dir}',
+                f"warning: .pyi file for source {src} not found in {pyi_dir}",
                 file=sys.stderr,
             )
     else:
@@ -164,7 +140,7 @@ def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False):
         reapply_all(pyi_ast.body, src_node)
     fix_remaining_type_comments(src_node)
     targets.mkdir(parents=True, exist_ok=True)
-    with open(targets / src.name, 'w', encoding=src_encoding) as target_file:
+    with open(targets / src.name, "w", encoding=src_encoding) as target_file:
         target_file.write(lib2to3_unparse(src_node, hg=hg))
     return targets / src.name
 
@@ -173,8 +149,8 @@ def lib2to3_parse(src_txt):
     """Given a string with source, return the lib2to3 Node."""
     grammar = pygram.python_grammar_no_print_statement
     drv = driver.Driver(grammar, pytree.convert)
-    if src_txt[-1] != '\n':
-        nl = '\r\n' if '\r\n' in src_txt[:1024] else '\n'
+    if src_txt[-1] != "\n":
+        nl = "\r\n" if "\r\n" in src_txt[:1024] else "\n"
         src_txt += nl
     try:
         result = drv.parse_string(src_txt, True)
@@ -198,6 +174,7 @@ def lib2to3_unparse(node, *, hg=False):
     code = str(node)
     if hg:
         from retype_hgext import apply_job_security
+
         code = apply_job_security(code)
     return code
 
@@ -237,7 +214,7 @@ def _r_list(l, lib2to3_node):
 def _r_importfrom(import_from, node):
     assert node.type in (syms.file_input, syms.suite)
     level = import_from.level or 0
-    module = '.' * level + (import_from.module or '')
+    module = "." * level + (import_from.module or "")
     names = import_from.names
     for child in flatten_some(node.children):
         if child.type != syms.simple_stmt:
@@ -301,13 +278,13 @@ def _r_functiondef(fun, node):
     assert node.type in (syms.file_input, syms.suite)
     name = Leaf(token.NAME, fun.name)
     pyi_decorators = decorator_names(fun.decorator_list)
-    pyi_method_decorators = list( \
+    pyi_method_decorators = list(
         filter(is_builtin_method_decorator, pyi_decorators)
-    ) or ['instancemethod']
+    ) or ["instancemethod"]
     is_method = (
-        node.parent is not None and \
-        node.parent.type == syms.classdef and
-        "staticmethod" not in pyi_method_decorators
+        node.parent is not None
+        and node.parent.type == syms.classdef
+        and "staticmethod" not in pyi_method_decorators
     )
     args, returns = get_function_signature(fun, is_method=is_method)
     for child in flatten_some(node.children):
@@ -333,13 +310,13 @@ def _r_functiondef(fun, node):
                 src_decorators = decorator_names(decorators)
                 src_method_decorators = list(
                     filter(is_builtin_method_decorator, src_decorators)
-                ) or ['instancemethod']
+                ) or ["instancemethod"]
                 if pyi_method_decorators != src_method_decorators:
                     raise ValueError(
-                        f"Incompatible method kind for {fun.name!r}: " +
-                        f"{lineno}:{column}: Expected: " +
-                        f"{pyi_method_decorators[0]}, actual: " +
-                        f"{src_method_decorators[0]}"
+                        f"Incompatible method kind for {fun.name!r}: "
+                        + f"{lineno}:{column}: Expected: "
+                        + f"{pyi_method_decorators[0]}, actual: "
+                        + f"{src_method_decorators[0]}"
                     )
 
                 is_method = "staticmethod" not in pyi_decorators
@@ -353,8 +330,8 @@ def _r_functiondef(fun, node):
                 remove_function_signature_type_comment(child.children[-1])
             except ValueError as ve:
                 raise ValueError(
-                    f"Annotation problem in function {name.value!r}: " +
-                    f"{lineno}:{column}: {ve}"
+                    f"Annotation problem in function {name.value!r}: "
+                    + f"{lineno}:{column}: {ve}"
                 )
             break
     else:
@@ -377,13 +354,7 @@ def _r_annassign(annassign, body):
 
     annotation = convert_annotation(annassign.annotation)
     annotation.prefix = " "
-    annassign_node = Node(
-        syms.annassign,
-        [
-            new(_colon),
-            annotation,
-        ],
-    )
+    annassign_node = Node(syms.annassign, [new(_colon), annotation])
     for child in flatten_some(body.children):
         if child.type != syms.simple_stmt:
             continue
@@ -395,8 +366,8 @@ def _r_annassign(annassign, body):
         expr = maybe_expr.children
 
         if (
-            expr[0].type in (token.NAME, syms.power) and
-            minimize_whitespace(str(expr[0])) == name
+            expr[0].type in (token.NAME, syms.power)
+            and minimize_whitespace(str(expr[0])) == name
         ):
             if expr[1].type == syms.annassign:
                 # variable already typed, let's just ensure it's sane
@@ -405,9 +376,7 @@ def _r_annassign(annassign, body):
                         f"unexpected element after annotation: {str(expr[3])}"
                     )
                 expr[1].children[1] = maybe_replace_any_if_equal(
-                    f"variable annotation for {name!r}",
-                    annotation,
-                    expr[1].children[1],
+                    f"variable annotation for {name!r}", annotation, expr[1].children[1]
                 )
                 break
 
@@ -422,16 +391,14 @@ def _r_annassign(annassign, body):
             maybe_type_comment = _type_comment_re.match(child.children[1].prefix)
             if maybe_type_comment:
                 # variable already typed by type comment, let's ensure it's sane...
-                type_comment = parse_type_comment(maybe_type_comment.group('type'))
+                type_comment = parse_type_comment(maybe_type_comment.group("type"))
                 actual_annotation = convert_annotation(type_comment)
                 ensure_annotations_equal(
-                    f"variable annotation for {name!r}",
-                    annotation,
-                    actual_annotation,
+                    f"variable annotation for {name!r}", annotation, actual_annotation
                 )
                 # ...and remove the redundant comment
                 child.children[1].prefix = maybe_space_before_comment(
-                    maybe_type_comment.group('nl')
+                    maybe_type_comment.group("nl")
                 )
 
             if len(expr[2:]) > 0 and expr[2:] != [_ellipsis]:
@@ -452,16 +419,10 @@ def _r_annassign(annassign, body):
             Node(
                 syms.simple_stmt,
                 [
-                    Node(
-                        syms.expr_stmt,
-                        [
-                            Leaf(token.NAME, name),
-                            annassign_node,
-                        ],
-                    ),
+                    Node(syms.expr_stmt, [Leaf(token.NAME, name), annassign_node]),
                     new(_newline),
                 ],
-                prefix=prefix.lstrip('\n'),
+                prefix=prefix.lstrip("\n"),
             ),
         )
 
@@ -482,10 +443,7 @@ def _r_assign(assign, body):
         # a new-style annotated assignment
         tc = parse_type_comment(assign.type_comment)
         annassign = ast3.AnnAssign(
-            target=assign.targets[0],
-            annotation=tc,
-            value=assign.value,
-            simple=False,
+            target=assign.targets[0], annotation=tc, value=assign.value, simple=False
         )
         return reapply(annassign, body)
 
@@ -508,10 +466,10 @@ def _r_assign(assign, body):
         expr = maybe_expr.children
 
         if (
-            isinstance(expr[0], Leaf) and
-            expr[0].type == token.NAME and
-            expr[0].value == name and
-            expr[1] == _eq
+            isinstance(expr[0], Leaf)
+            and expr[0].type == token.NAME
+            and expr[0].value == name
+            and expr[1] == _eq
         ):
             expr[2] = maybe_replace_any_if_equal(f"alias {name!r}", value, expr[2])
             break
@@ -536,17 +494,10 @@ def _r_assign(assign, body):
                 Node(
                     syms.simple_stmt,
                     [
-                        Node(
-                            syms.expr_stmt,
-                            [
-                                Leaf(token.NAME, name),
-                                new(_eq),
-                                value,
-                            ],
-                        ),
+                        Node(syms.expr_stmt, [Leaf(token.NAME, name), new(_eq), value]),
                         new(_newline),
                     ],
-                    prefix=prefix.lstrip('\n'),
+                    prefix=prefix.lstrip("\n"),
                 ),
             )
 
@@ -589,14 +540,8 @@ def _c_subscript(sub):
     return Node(
         syms.power,
         [
-            convert_annotation(sub.value), Node(
-                syms.trailer,
-                [
-                    new(_lsqb),
-                    convert_annotation(sub.slice),
-                    new(_rsqb),
-                ],
-            )
+            convert_annotation(sub.value),
+            Node(syms.trailer, [new(_lsqb), convert_annotation(sub.slice), new(_rsqb)]),
         ],
     )
 
@@ -633,10 +578,7 @@ def _c_tuple(tup):
         contents[index].prefix = " "
         contents.insert(index, new(_comma))
 
-    return Node(
-        syms.subscriptlist,
-        contents,
-    )
+    return Node(syms.subscriptlist, contents)
 
 
 @convert_annotation.register(ast3.Attribute)
@@ -653,18 +595,11 @@ def _c_call(call):
         contents[index].prefix = " "
         contents.insert(index, new(_comma))
 
-    call_args = [
-        new(_lpar),
-        new(_rpar),
-    ]
+    call_args = [new(_lpar), new(_rpar)]
     if contents:
         call_args.insert(1, Node(syms.arglist, contents))
     return Node(
-        syms.power,
-        [convert_annotation(call.func), Node(
-            syms.trailer,
-            call_args,
-        )],
+        syms.power, [convert_annotation(call.func), Node(syms.trailer, call_args)]
     )
 
 
@@ -675,7 +610,7 @@ def _c_keyword(kwarg):
         syms.argument,
         [
             Leaf(token.NAME, kwarg.arg),
-            new(_eq, prefix=''),
+            new(_eq, prefix=""),
             convert_annotation(kwarg.value),
         ],
     )
@@ -688,10 +623,7 @@ def _c_list(l):
         contents[index].prefix = " "
         contents.insert(index, new(_comma))
 
-    list_literal = [
-        new(_lsqb),
-        new(_rsqb),
-    ]
+    list_literal = [new(_lsqb), new(_rsqb)]
     if contents:
         list_literal.insert(1, Node(syms.listmaker, contents))
     return Node(syms.atom, list_literal)
@@ -802,7 +734,7 @@ def fix_variable_annotation_type_comment(node, last):
     if not m:
         return
 
-    type_comment = parse_type_comment(m.group('type'))
+    type_comment = parse_type_comment(m.group("type"))
     ann = convert_annotation(type_comment)
     ann.prefix = " "
     annassign_node = Node(syms.annassign, [new(_colon), ann])
@@ -812,7 +744,7 @@ def fix_variable_annotation_type_comment(node, last):
         annassign_node.children.append(new(_eq))
         annassign_node.children.extend(new(elem) for elem in expr[2:])
     last.children = [expr[0], annassign_node]
-    node.prefix = maybe_space_before_comment(m.group('nl'))
+    node.prefix = maybe_space_before_comment(m.group("nl"))
 
 
 def fix_signature_annotation_type_comment(node, last, *, offset):
@@ -827,7 +759,7 @@ def fix_signature_annotation_type_comment(node, last, *, offset):
         return
 
     parameters = node.children[offset + 1]
-    args_tc, returns_tc = parse_signature_type_comment(m.group('type'))
+    args_tc, returns_tc = parse_signature_type_comment(m.group("type"))
     ast_args = parse_arguments(str(parameters))
     # `is_method=True` below only means we allow for missing first annotation.
     # It's not even worth checking at this point.
@@ -847,7 +779,7 @@ def is_assignment(node):
 
 
 def is_builtin_method_decorator(name):
-    return name in {'classmethod', 'staticmethod'}
+    return name in {"classmethod", "staticmethod"}
 
 
 def make_import(*names, from_module=None):
@@ -859,21 +791,21 @@ def make_import(*names, from_module=None):
         container = syms.import_as_names
         single = syms.import_as_name
         result = [
-            Leaf(token.NAME, 'from'),
-            Leaf(token.NAME, from_module, prefix=' '),
-            Leaf(token.NAME, 'import', prefix=' '),
+            Leaf(token.NAME, "from"),
+            Leaf(token.NAME, from_module, prefix=" "),
+            Leaf(token.NAME, "import", prefix=" "),
         ]
     else:
         statement = syms.import_name
         container = syms.dotted_as_names
         single = syms.dotted_as_name
-        result = [Leaf(token.NAME, 'import')]
+        result = [Leaf(token.NAME, "import")]
 
     for alias in names:
-        name = Leaf(token.NAME, alias.name, prefix=' ')
+        name = Leaf(token.NAME, alias.name, prefix=" ")
         if alias.asname:
-            _as = Leaf(token.NAME, 'as', prefix=' ')
-            asname = Leaf(token.NAME, alias.asname, prefix=' ')
+            _as = Leaf(token.NAME, "as", prefix=" ")
+            asname = Leaf(token.NAME, alias.asname, prefix=" ")
             imports.append(Node(single, [name, _as, asname]))
         else:
             imports.append(name)
@@ -883,15 +815,12 @@ def make_import(*names, from_module=None):
         imports_and_commas = []
         for imp in imports[:-1]:
             imports_and_commas.append(imp)
-            imports_and_commas.append(Leaf(token.COMMA, ','))
+            imports_and_commas.append(Leaf(token.COMMA, ","))
         imports_and_commas.append(imports[-1])
         result.append(Node(container, imports_and_commas))
     return Node(
         syms.simple_stmt,
-        [
-            Node(statement, result),
-            Leaf(token.NEWLINE, '\n'),  # FIXME: \r\n?
-        ],
+        [Node(statement, result), Leaf(token.NEWLINE, "\n")],  # FIXME: \r\n?
     )
 
 
@@ -950,16 +879,13 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
         if not ast_args.vararg:
             if hopefully_vararg != _comma:
                 raise ValueError(
-                    f".pyi file expects keyword-only arguments but " +
-                    f"*{str(hopefully_vararg).strip()} found in source"
+                    f".pyi file expects keyword-only arguments but "
+                    + f"*{str(hopefully_vararg).strip()} found in source"
                 )
 
         typedargslist.extend(
             gen_annotated_params(
-                ast_args.kwonlyargs,
-                ast_args.kw_defaults,
-                params,
-                implicit_default=True,
+                ast_args.kwonlyargs, ast_args.kw_defaults, params, implicit_default=True
             )
         )
 
@@ -1009,7 +935,7 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
         for arg in parameters.pre_order():
             # remove now spurious type comments
             arg.prefix = maybe_space_before_comment(
-                _type_comment_re.sub(r'\g<nl>', arg.prefix, re.MULTILINE)
+                _type_comment_re.sub(r"\g<nl>", arg.prefix, re.MULTILINE)
             )
     else:
         parameters.children = [
@@ -1067,8 +993,8 @@ def get_function_signature(fun, *, is_method=False):
             copy_arguments_to_annotations(args, args_tc, is_method=is_method)
         except (SyntaxError, ValueError) as exc:
             raise ValueError(
-                f"Annotation problem in function {fun.name!r}: " +
-                f"{fun.lineno}:{fun.col_offset + 1}: {exc}"
+                f"Annotation problem in function {fun.name!r}: "
+                + f"{fun.lineno}:{fun.col_offset + 1}: {exc}"
             )
     copy_type_comments_to_annotations(args)
 
@@ -1088,7 +1014,7 @@ def parse_signature_type_comment(type_comment):
     ([ast3.Name, ast.Name, ast3.Name, ast.Name], ast3.Str)
     """
     try:
-        result = ast3.parse(type_comment, '<func_type>', 'func_type')
+        result = ast3.parse(type_comment, "<func_type>", "func_type")
     except SyntaxError:
         raise ValueError(f"invalid function signature type comment: {type_comment!r}")
 
@@ -1103,7 +1029,7 @@ def parse_signature_type_comment(type_comment):
 def parse_type_comment(type_comment):
     """Parse a type comment string into AST nodes."""
     try:
-        result = ast3.parse(type_comment, '<type_comment>', 'eval')
+        result = ast3.parse(type_comment, "<type_comment>", "eval")
     except SyntaxError:
         raise ValueError(f"invalid type comment: {type_comment!r}") from None
 
@@ -1118,7 +1044,7 @@ def parse_arguments(arguments):
     """
     arguments = f"def f{arguments}: ..."
     try:
-        result = ast3.parse(arguments, '<arguments>', 'exec')
+        result = ast3.parse(arguments, "<arguments>", "exec")
     except SyntaxError:
         raise ValueError(f"invalid arguments: {arguments!r}") from None
 
@@ -1151,8 +1077,8 @@ def copy_arguments_to_annotations(args, type_comment, *, is_method=False):
             pass  # fine, we're just skipping `self`, `cls`, etc.
         else:
             raise ValueError(
-                f"number of arguments in type comment doesn't match; " +
-                f"expected {expected}, found {actual}"
+                f"number of arguments in type comment doesn't match; "
+                + f"expected {expected}, found {actual}"
             )
 
     if isinstance(type_comment, list):
@@ -1166,7 +1092,7 @@ def copy_arguments_to_annotations(args, type_comment, *, is_method=False):
         def next_value(index: int = 0) -> ast3.expr:
             return _tc
 
-    for arg in args.args[expected - actual:]:
+    for arg in args.args[expected - actual :]:
         ensure_no_annotation(arg.annotation)
         arg.annotation = next_value(0)
 
@@ -1228,14 +1154,14 @@ def maybe_replace_any_if_equal(name, expected, actual):
         actual_str = minimize_whitespace(str(actual))
         if actual_str and actual_str[0] in {'"', "'"}:
             actual_str = actual_str[1:-1]
-        is_equal = actual_str in {'Any', 'typing.Any', 't.Any'}
+        is_equal = actual_str in {"Any", "typing.Any", "t.Any"}
 
     if not is_equal:
         expected_annotation = minimize_whitespace(str(expected))
         actual_annotation = minimize_whitespace(str(actual))
         raise ValueError(
-            f"incompatible existing {name}. " +
-            f"Expected: {expected_annotation!r}, actual: {actual_annotation!r}"
+            f"incompatible existing {name}. "
+            + f"Expected: {expected_annotation!r}, actual: {actual_annotation!r}"
         )
 
     return expected or actual
@@ -1261,21 +1187,21 @@ def remove_function_signature_type_comment(body):
     for node in body.children:
         if node.type == token.INDENT:
             prefix = node.prefix.lstrip()
-            if prefix.startswith('# type: '):
-                node.prefix = '\n'.join(prefix.split('\n')[1:])
+            if prefix.startswith("# type: "):
+                node.prefix = "\n".join(prefix.split("\n")[1:])
             break
 
 
 def minimize_whitespace(text):
-    return re.sub(r'[\n\t ]+', ' ', text, re.MULTILINE).strip()
+    return re.sub(r"[\n\t ]+", " ", text, re.MULTILINE).strip()
 
 
 def maybe_space_before_comment(text):
     if not text:
-        return ''
+        return ""
 
-    if text.startswith('#'):
-        return '  ' + text
+    if text.startswith("#"):
+        return "  " + text
 
     return text
 
@@ -1337,21 +1263,21 @@ def gen_annotated_params(
             if not implicit_default or actual_default != _none:
                 param_s = minimize_whitespace(str(param))
                 raise ValueError(
-                    f".pyi file does not specify default value for arg " +
-                    f"`{param_s}` but the source does"
+                    f".pyi file does not specify default value for arg "
+                    + f"`{param_s}` but the source does"
                 )
 
         if expected_default is not None and actual_default is None:
             param_s = minimize_whitespace(str(param))
             raise ValueError(
-                f"source file does not specify default value for arg `{param_s}` " +
-                f"but the .pyi file does"
+                f"source file does not specify default value for arg `{param_s}` "
+                + f"but the .pyi file does"
             )
 
         node = get_annotated_param(param, arg, missing_ok=missing_ok)
         yield node
         if actual_default:
-            whitespace = ' ' if node.type == syms.tname else ''
+            whitespace = " " if node.type == syms.tname else ""
             yield new(_eq, prefix=whitespace)
             yield new(actual_default, prefix=whitespace)
 
@@ -1368,8 +1294,8 @@ def get_annotated_param(node, arg, *, missing_ok=False):
         node = node.children[0]
     if not isinstance(node, Leaf) or arg.arg != node.value:
         raise ValueError(
-            f".pyi file expects argument {arg.arg!r} next but argument " +
-            f"{minimize_whitespace(str(node))!r} found in source"
+            f".pyi file expects argument {arg.arg!r} next but argument "
+            + f"{minimize_whitespace(str(node))!r} found in source"
         )
 
     if arg.annotation is None:
@@ -1378,14 +1304,14 @@ def get_annotated_param(node, arg, *, missing_ok=False):
                 return new(node)
 
             raise ValueError(
-                f".pyi file is missing annotation for {arg.arg!r} and source " +
-                f"doesn't provide it either"
+                f".pyi file is missing annotation for {arg.arg!r} and source "
+                + f"doesn't provide it either"
             )
 
         ann = new(actual_ann)
     else:
         ann = convert_annotation(arg.annotation)
-        ann.prefix = ' '
+        ann.prefix = " "
 
     if actual_ann is not None:
         ensure_annotations_equal("annotation for {arg.arg!r}", ann, actual_ann)
@@ -1405,7 +1331,7 @@ def get_offset_and_prefix(body, skip_assignments=False):
     assert body.type in (syms.file_input, syms.suite)
 
     _offset = 0
-    prefix = ''
+    prefix = ""
     for _offset, child in enumerate(body.children):
         if child.type == syms.simple_stmt:
             stmt = child.children[0]
@@ -1415,10 +1341,10 @@ def get_offset_and_prefix(body, skip_assignments=False):
                     break
 
                 if (
-                    len(expr) != 2 or
-                    expr[0].type != token.NAME or
-                    expr[1].type != syms.annassign or
-                    _eq in expr[1].children
+                    len(expr) != 2
+                    or expr[0].type != token.NAME
+                    or expr[1].type != syms.annassign
+                    or _eq in expr[1].children
                 ):
                     break
 
@@ -1458,10 +1384,10 @@ def fix_line_numbers(body):
     r"""Recomputes all line numbers based on the number of \n characters."""
     maxline = 0
     for node in body.pre_order():
-        maxline += node.prefix.count('\n')
+        maxline += node.prefix.count("\n")
         if isinstance(node, Leaf):
             node.lineno = maxline
-            maxline += str(node.value).count('\n')
+            maxline += str(node.value).count("\n")
 
 
 def new(n, prefix=None):
@@ -1478,20 +1404,20 @@ def new(n, prefix=None):
     return n
 
 
-_as = Leaf(token.NAME, 'as', prefix=' ')
-_colon = Leaf(token.COLON, ':')
-_comma = Leaf(token.COMMA, ',')
-_dot = Leaf(token.DOT, '.')
-_dstar = Leaf(token.DOUBLESTAR, '**')
-_eq = Leaf(token.EQUAL, '=', prefix=' ')
-_lpar = Leaf(token.LPAR, '(')
-_lsqb = Leaf(token.LSQB, '[')
-_newline = Leaf(token.NEWLINE, '\n')
-_none = Leaf(token.NAME, 'None')
-_rarrow = Leaf(token.RARROW, '->', prefix=' ')
-_rpar = Leaf(token.RPAR, ')')
-_rsqb = Leaf(token.RSQB, ']')
-_star = Leaf(token.STAR, '*')
+_as = Leaf(token.NAME, "as", prefix=" ")
+_colon = Leaf(token.COLON, ":")
+_comma = Leaf(token.COMMA, ",")
+_dot = Leaf(token.DOT, ".")
+_dstar = Leaf(token.DOUBLESTAR, "**")
+_eq = Leaf(token.EQUAL, "=", prefix=" ")
+_lpar = Leaf(token.LPAR, "(")
+_lsqb = Leaf(token.LSQB, "[")
+_newline = Leaf(token.NEWLINE, "\n")
+_none = Leaf(token.NAME, "None")
+_rarrow = Leaf(token.RARROW, "->", prefix=" ")
+_rpar = Leaf(token.RPAR, ")")
+_rsqb = Leaf(token.RSQB, "]")
+_star = Leaf(token.STAR, "*")
 _ellipsis = Node(syms.atom, children=[new(_dot), new(_dot), new(_dot)])
 
 _type_comment_re = re.compile(
@@ -1517,5 +1443,5 @@ _type_comment_re = re.compile(
     re.MULTILINE | re.VERBOSE,
 )
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

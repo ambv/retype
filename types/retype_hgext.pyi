@@ -1,7 +1,10 @@
 from tokenize import TokenInfo
 from typing import Iterator, List, Optional
 
-def replacetokens(tokens: List[TokenInfo], fullname: str) -> Iterator[TokenInfo]:  # type: ignore
+
+def replacetokens(  # type: ignore
+    tokens: List[TokenInfo], fullname: str
+) -> Iterator[TokenInfo]:
     def _isop(j: int, *o: str) -> bool: ...
     def _findargnofcall(n: int) -> Optional[int]: ...
     def _ensureunicode(j: int) -> None: ...
