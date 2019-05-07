@@ -46,6 +46,7 @@ setup(
     version=version,
     description="Re-apply types from .pyi stub files to your codebase.",
     long_description=long_description,
+    long_description_content_type="text/x-rst",
     keywords="mypy typing typehints type hints pep484 pyi stubs",
     author="Łukasz Langa",
     author_email="lukasz@langa.pl",
