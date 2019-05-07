@@ -5,20 +5,10 @@ _E = TypeVar("_E", bound=Exception)
 
 class RetypeTestCase(TestCase):
     def assertReapply(
-        self,
-        pyi_txt: str,
-        src_txt: str,
-        expected_txt: str,
-        *,
-        incremental: bool = False,
+        self, pyi_txt: str, src_txt: str, expected_txt: str, *, incremental: bool
     ) -> None: ...
     def assertReapplyVisible(
-        self,
-        pyi_txt: str,
-        src_txt: str,
-        expected_txt: str,
-        *,
-        incremental: bool = False,
+        self, pyi_txt: str, src_txt: str, expected_txt: str, *, incremental: bool
     ) -> None: ...
     def assertReapplyRaises(
         self,
@@ -26,5 +16,5 @@ class RetypeTestCase(TestCase):
         src_txt: str,
         expected_exception: Type[_E],
         *,
-        incremental: bool = False,
+        incremental: bool,
     ) -> _E: ...
