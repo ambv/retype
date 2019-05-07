@@ -35,10 +35,11 @@ except (IOError, ImportError):
 
 _version_re = re.compile(r"__version__\s+=\s+(?P<version>.*)")
 
-
-with open(os.path.join(current_dir, "retype.py"), "r", encoding="utf8") as f:
+version_in_file = os.path.join(current_dir, "retype.py")
+with open(version_in_file, "r", encoding="utf8") as f:
     match = _version_re.search(f.read())
-    assert match is not None
+    if match is None:
+        raise RuntimeError("could not find __version__ in {}".format(version_in_file))
     version = match.group("version")
     version = str(ast.literal_eval(version))
 
