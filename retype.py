@@ -566,6 +566,11 @@ def _c_str(s):
     return Leaf(token.STRING, repr(s.s))
 
 
+@convert_annotation.register(ast3.Num)
+def _c_num(n):
+    return Leaf(token.NUMBER, repr(n.n))
+
+
 @convert_annotation.register(ast3.Index)
 def _c_index(index):
     return convert_annotation(index.value)
