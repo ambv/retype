@@ -2,6 +2,8 @@ from lib2to3.pytree import Leaf, Node
 from pathlib import Path
 from typing import (
     Callable,
+    Dict,
+    Generator,
     Iterable,
     Iterator,
     List,
@@ -12,6 +14,7 @@ from typing import (
     Union,
 )
 
+from pathspec import PathSpec
 from typed_ast import ast3
 
 _LN = Union[Node, Leaf]
@@ -149,3 +152,9 @@ def _dn_call(call: ast3.Call) -> List[str]: ...
 def _dn_attribute(attr: ast3.Attribute) -> List[str]: ...
 def _nuin_node(node: Node, name: Leaf) -> bool: ...
 def _nuin_leaf(leaf: Leaf, name: Leaf) -> bool: ...
+def walk_not_git_ignored(
+    path: Path, keep: Callable[[Path], bool], extra_ignore: List[str]
+) -> Generator[Path, None, None]: ...
+def _load_ignore(
+    at_path: Path, parent_spec: PathSpec, ignores: Dict[Path, PathSpec]
+) -> PathSpec: ...

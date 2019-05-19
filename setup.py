@@ -63,7 +63,7 @@ setup(
         )
     ],
     zip_safe=False,
-    install_requires=["click", "typed-ast"],
+    install_requires=["click", "typed-ast", "pathspec >= 0.5.9, <1"],
     test_suite="tests.test_retype",
     classifiers=[
         "Development Status :: 3 - Alpha",

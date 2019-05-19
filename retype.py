@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Re-apply type annotations from .pyi stubs to your codebase."""
 
+import os
 import re
 import sys
 import threading
@@ -15,6 +16,7 @@ from lib2to3.pytree import Leaf, Node
 from pathlib import Path
 
 import click
+from pathspec import PathSpec
 from typed_ast import ast3
 
 __version__ = "19.5.0"
@@ -99,11 +101,18 @@ def retype_path(
 ):
     """Recursively retype files or directories given. Generate errors."""
     if src.is_dir():
-        for child in src.iterdir():
-            if child == pyi_dir or child == targets:
-                continue
+        extra_ignore = []
+        for folder in [pyi_dir, targets]:
+            try:
+                extra_ignore.append("/{}".format(folder.relative_to(src)))
+            except ValueError:
+                pass
+        for file in walk_not_git_ignored(
+            src, lambda p: p.suffix == ".py", extra_ignore
+        ):
+            nested = file.relative_to(src).parent
             yield from retype_path(
-                child, pyi_dir / src.name, targets / src.name, quiet=quiet, hg=hg
+                file, pyi_dir / nested, targets / nested, quiet=quiet, hg=hg
             )
     elif src.suffix == ".py" or src_explicitly_given:
         try:
@@ -1407,6 +1416,58 @@ def new(n, prefix=None):
     if prefix is not None:
         n.prefix = prefix
     return n
+
+
+def _load_ignore(at_path, parent_spec, ignores):
+    ignore_file = at_path / ".gitignore"
+    if not ignore_file.exists():
+        return parent_spec
+    lines = ignore_file.read_text().split(os.linesep)
+    spec = PathSpec.from_lines("gitwildmatch", lines)
+    spec = PathSpec(parent_spec.patterns + spec.patterns)
+    ignores[at_path] = spec
+    return spec
+
+
+def walk_not_git_ignored(path, keep, extra_ignore):
+    path = path.absolute()
+    spec = PathSpec.from_lines("gitwildmatch", [".git"] + extra_ignore)
+    ignores = {}
+    # detect git folder, collect ignores up to root
+    at = path
+    while True:
+        git_exist = (at / ".git").exists()
+        if git_exist:
+            ignores[at.parent] = spec
+            # go down back and load all ignores
+            for part in (".",) + path.relative_to(at).parts:
+                at = at / part
+                spec = _load_ignore(at, spec, ignores)
+            break
+        if at == at.parent:
+            ignores[path] = spec
+            break
+        at = at.parent
+
+    # now walk from root, collect new ignores and evaluate
+    for root, dirs, files in os.walk(str(path)):
+        root_path = Path(root).relative_to(path)  # current path
+        current_path = path / root
+        parent_spec = ignores.get(current_path) or next(
+            ignores[p] for p in current_path.parents if p in ignores
+        )
+        spec = _load_ignore(Path(root), parent_spec, ignores)
+        for file_name in files:
+            result = root_path / file_name
+            if (
+                file_name != ".gitignore"
+                and keep(result)
+                and not spec.match_file(str(result))
+            ):
+                yield path / result
+        for cur_dir in list(dirs):
+            if spec.match_file(str(root_path / cur_dir)):
+                dirs.remove(cur_dir)
 
 
 _as = Leaf(token.NAME, "as", prefix=" ")

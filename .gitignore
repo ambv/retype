@@ -20,7 +20,7 @@ lib64/
 parts/
 sdist/
 var/
-*.egg-info/
+*.egg-info
 .installed.cfg
 *.egg
 
@@ -36,7 +36,7 @@ pip-delete-this-directory.txt
 
 # Unit test / coverage reports
 htmlcov/
-.tox/
+.tox
 .coverage
 .coverage.*
 .cache
