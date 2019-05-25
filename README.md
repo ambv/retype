@@ -1,24 +1,27 @@
 # retype
 
-[![Build Status](https://travis-ci.org/ambv/retype.svg?branch=master)](https://travis-ci.org/ambv/retype)
+[![Build Status](https://dev.azure.com/ambv/retype/_apis/build/status/ambv.retype?branchName=master)](https://dev.azure.com/ambv/retype/_build/latest?definitionId=1&branchName=master)
 
 Re-apply type annotations from .pyi stubs to your codebase.
 
 ## Usage
 
 ```
-retype [OPTIONS] [SRC]...
+Usage: retype [OPTIONS] [SRC]...
+
+  Re-apply type annotations from .pyi stubs to your codebase.
 
 Options:
   -p, --pyi-dir DIRECTORY     Where to find .pyi stubs.  [default: types]
-  -t, --target-dir DIRECTORY  Where to write annotated sources.  [default: typed-src]
+  -t, --target-dir DIRECTORY  Where to write annotated sources.  [default:
+                              typed-src]
   -i, --incremental           Allow for missing type annotations in both stubs
                               and the source.
   -q, --quiet                 Don't emit warnings, just errors.
   -a, --replace-any           Allow replacing Any annotations.
-  --hg                        Post-process source files to preserve
-                              implicit byte literals.
-  --traceback                 Show a Python traceback on error
+  --hg                        Post-process files to preserve implicit byte
+                              literals.
+  --traceback                 Show a Python traceback on error.
   --version                   Show the version and exit.
   --help                      Show this message and exit.
 ```
@@ -113,13 +116,13 @@ It's smart enough to do the following:
 Just run:
 
 ```
-python setup.py test
+tox
 ```
 
 ## OMG, this is Python 3 only!
 
 Relax, you can run *retype* **as a tool** perfectly fine under Python
-3.6+ even if you want to analyze Python 2 code.  This way you'll be able
+3.6+ even if you want to analyze Python 2 code.  This way you'll be able
 to parse all of the new syntax supported on Python 3 but also
 *effectively all* the Python 2 syntax at the same time.
 
@@ -137,6 +140,19 @@ MIT
 
 
 ## Change Log
+
+### next
+
+* add a module entry-point, now you can call it via ``python -m retype``
+* automatically all files excluded by ``.gitignore`` on merge of folders
+* support for ``ast3.num``
+* fix a bug that meant the merge was not recursive in paths
+* use `setup.cfg` based packaging configuration
+* add PEP-517/8 declaration via `pyproject.toml`
+* include license in both wheel and sdist
+* this projects code base is now formatted with *black*, import ordered via
+  *isort*, and uses Azure Pipelines instead of Travis (also testing on Windows
+  and macOs)
 
 ### 17.12.0
 
@@ -183,4 +199,5 @@ MIT
 ## Authors
 
 Glued together by [Łukasz Langa](mailto:lukasz@langa.pl).  Multiple
-improvements by [Michael Overmeyer](mailto:m.overmeyer@yahoo.ca).
+improvements by [Michael Overmeyer](mailto:m.overmeyer@yahoo.ca) and
+[Bernat Gabor](mailto:gaborjbernat@gmail.com).

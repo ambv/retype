@@ -1,0 +1,3 @@
+from typing import Text
+
+__version__: Text = ...

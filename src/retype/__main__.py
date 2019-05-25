@@ -1,10 +1,11 @@
 import sys
 from functools import partial
+from pathlib import Path
 
 import click
-from click import Path
-from . import retype_path
 
+from . import retype_path
+from .config import ReApplyFlags
 from .version import __version__
 
 Directory = partial(
@@ -53,15 +54,16 @@ Directory = partial(
 def main(src, pyi_dir, target_dir, incremental, quiet, replace_any, hg, traceback):
     """Re-apply type annotations from .pyi stubs to your codebase."""
 
-    returncode = 0
+    exit_code = 0
     for src_entry in src:
         for file, error, exc_type, tb in retype_path(
-            Path(src_entry),
+            src=Path(src_entry),
             pyi_dir=Path(pyi_dir),
             targets=Path(target_dir),
             src_explicitly_given=True,
             quiet=quiet,
             hg=hg,
+            flags=ReApplyFlags(replace_any=replace_any, incremental=incremental),
         ):
             print(f"error: {file}: {error}", file=sys.stderr)
             if traceback:
@@ -69,13 +71,13 @@ def main(src, pyi_dir, target_dir, incremental, quiet, replace_any, hg, tracebac
                 for line in tb:
                     print(line, file=sys.stderr, end="")
                 print(f"{exc_type.__name__}: {error}", file=sys.stderr)
-            returncode += 1
+            exit_code += 1
     if not src and not quiet:
         print("warning: no sources given", file=sys.stderr)
 
     # According to http://tldp.org/LDP/abs/html/index.html starting with 126
-    # we have special returncodes.
-    sys.exit(min(returncode, 125))
+    # we have special return codes.
+    sys.exit(min(exit_code, 125))
 
 
 if __name__ == "__main__":

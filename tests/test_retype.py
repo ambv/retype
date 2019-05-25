@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 
 from textwrap import dedent
+from typing import Optional
 from unittest import TestCase, main
 
 from typed_ast import ast3
 
 from retype import (
+    ReApplyFlags,
     _type_comment_re,
     fix_remaining_type_comments,
     lib2to3_parse,
     reapply_all,
     serialize_attribute,
 )
-from retype.__main__ import Config
 
 
 class RetypeTestCase(TestCase):
@@ -21,28 +22,26 @@ class RetypeTestCase(TestCase):
     def assertReapply(
         self, pyi_txt, src_txt, expected_txt, *, incremental=False, replace_any=False
     ):
-        Config.incremental = incremental
-        Config.replace_any = replace_any
         pyi = ast3.parse(dedent(pyi_txt))
         src = lib2to3_parse(dedent(src_txt))
         expected = lib2to3_parse(dedent(expected_txt))
         assert isinstance(pyi, ast3.Module)
-        reapply_all(pyi.body, src)
-        fix_remaining_type_comments(src)
+        flags = ReApplyFlags(replace_any=replace_any, incremental=incremental)
+        reapply_all(pyi.body, src, flags)
+        fix_remaining_type_comments(src, flags)
         self.longMessage = False
         self.assertEqual(expected, src, f"\n{expected!r} != \n{src!r}")
 
     def assertReapplyVisible(
         self, pyi_txt, src_txt, expected_txt, *, incremental=False, replace_any=False
     ):
-        Config.incremental = incremental
-        Config.replace_any = replace_any
+        flags = ReApplyFlags(replace_any=replace_any, incremental=incremental)
         pyi = ast3.parse(dedent(pyi_txt))
         src = lib2to3_parse(dedent(src_txt))
         expected = lib2to3_parse(dedent(expected_txt))
         assert isinstance(pyi, ast3.Module)
-        reapply_all(pyi.body, src)
-        fix_remaining_type_comments(src)
+        reapply_all(pyi.body, src, flags)
+        fix_remaining_type_comments(src, flags)
         self.longMessage = False
         self.assertEqual(
             str(expected), str(src), f"\n{str(expected)!r} != \n{str(src)!r}"
@@ -57,21 +56,21 @@ class RetypeTestCase(TestCase):
         incremental=False,
         replace_any=False,
     ):
-        Config.incremental = incremental
-        Config.replace_any = replace_any
+        flags = ReApplyFlags(replace_any=replace_any, incremental=incremental)
+
         with self.assertRaises(expected_exception) as ctx:
             pyi = ast3.parse(dedent(pyi_txt))
             src = lib2to3_parse(dedent(src_txt))
             assert isinstance(pyi, ast3.Module)
-            reapply_all(pyi.body, src)
-            fix_remaining_type_comments(src)
+            reapply_all(pyi.body, src, flags)
+            fix_remaining_type_comments(src, flags)
         return ctx.exception
 
 
 class ImportTestCase(RetypeTestCase):
     IMPORT = "import x"
 
-    def _test_matched(self, matched: str, expected: str = None) -> None:
+    def _test_matched(self, matched: str, expected: Optional[str] = None) -> None:
         pyi = f"{self.IMPORT}\n"
         src = f"{matched}\n"
         expected = f"{expected if expected is not None else matched}\n"
@@ -2455,24 +2454,25 @@ class PostProcessTestCase(RetypeTestCase):
 
 
 class TypeCommentReTestCase(TestCase):
-    def assertMatch(self, input, *, type, nl):
+    def assertMatch(self, input: str, *, type: str, nl: str) -> None:
         m = _type_comment_re.match(input)
         self.assertIsNotNone(m)
-        self.assertEqual(m.group("type"), type)
-        self.assertEqual(m.group("nl"), nl)
+        if m is not None:
+            self.assertEqual(m.group("type"), type)
+            self.assertEqual(m.group("nl"), nl)
 
-    def assertNoMatch(self, input):
+    def assertNoMatch(self, input: str) -> None:
         m = _type_comment_re.match(input)
         self.assertIsNone(m)
 
-    def test_ignore(self):
+    def test_ignore(self) -> None:
         self.assertNoMatch("# type:ignore")
         self.assertNoMatch("# type: ignore")
         self.assertNoMatch("# type: ignore\n")
         self.assertNoMatch("# type: ignore ")
         self.assertNoMatch("# type: ignore \n")
 
-    def test_ignore_with_comment(self):
+    def test_ignore_with_comment(self) -> None:
         self.assertNoMatch("# type: ignore#wut")
         self.assertNoMatch("# type: ignore#wut\n")
         self.assertNoMatch("# type: ignore#wut ")
@@ -2482,28 +2482,28 @@ class TypeCommentReTestCase(TestCase):
         self.assertNoMatch("# type: ignore  # wut \n")
         self.assertNoMatch("# type: ignore    # wut \n")
 
-    def test_no_whitespace_after_colon(self):
+    def test_no_whitespace_after_colon(self) -> None:
         self.assertMatch("# type:int", type="int", nl="")
         self.assertMatch("# type:int\n", type="int", nl="\n")
         self.assertMatch("  # type:int\n", type="int", nl="\n")
         self.assertMatch("# type:int  \n", type="int", nl="\n")
         self.assertMatch("  # type:int  \n", type="int", nl="\n")
 
-    def test_simple_type(self):
+    def test_simple_type(self) -> None:
         self.assertMatch("# type: int", type="int", nl="")
         self.assertMatch("# type: int\n", type="int", nl="\n")
         self.assertMatch("  # type: int\n", type="int", nl="\n")
         self.assertMatch("# type: int  \n", type="int", nl="\n")
         self.assertMatch("  # type: int  \n", type="int", nl="\n")
 
-    def test_simple_type_with_comment(self):
+    def test_simple_type_with_comment(self) -> None:
         self.assertMatch("# type: int#wut", type="int", nl="#wut")
         self.assertMatch("# type: int#wut\n", type="int", nl="#wut\n")
         self.assertMatch("  # type: int#wut\n", type="int", nl="#wut\n")
         self.assertMatch("# type: int  #wut\n", type="int", nl="#wut\n")
         self.assertMatch("  # type: int  # wut \n", type="int", nl="# wut \n")
 
-    def test_complex_type(self):
+    def test_complex_type(self) -> None:
         self.assertMatch(
             "# type: Dict[str, Union[str, int, None]]",
             type="Dict[str, Union[str, int, None]]",

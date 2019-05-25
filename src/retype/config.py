@@ -1,6 +1,7 @@
-from typing import NamedTuple
+class ReApplyFlags:
 
+    __slots__ = ("replace_any", "incremental")
 
-class Config(NamedTuple):
-    incremental: True
-    replace_any: True
+    def __init__(self, *, replace_any=True, incremental=False):
+        self.replace_any = replace_any
+        self.incremental = incremental
