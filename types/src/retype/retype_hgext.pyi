@@ -1,8 +1,6 @@
 from tokenize import TokenInfo
 from typing import Iterator, List, Optional
 
-# needed to bypass https://github.com/python/black/issues/837
-
 def replacetokens(  # type: ignore
     tokens: List[TokenInfo], fullname: str
 ) -> Iterator[TokenInfo]:

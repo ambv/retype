@@ -65,3 +65,5 @@ typed-src/
 
 pip-wheel-metadata
 .mypy_cache
+
+src/retype/version.py

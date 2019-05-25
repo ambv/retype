@@ -4,10 +4,9 @@
 import os
 import re
 import sys
-import threading
 import tokenize
 import traceback
-from functools import partial, singledispatch
+from functools import singledispatch
 from lib2to3 import pygram, pytree
 from lib2to3.pgen2 import driver, token
 from lib2to3.pgen2.parse import ParseError
@@ -15,89 +14,22 @@ from lib2to3.pygram import python_symbols as syms
 from lib2to3.pytree import Leaf, Node
 from pathlib import Path
 
-import click
 from pathspec import PathSpec
 from typed_ast import ast3
 
-__version__ = "19.5.0"
-
-Directory = partial(
-    click.Path,
-    exists=True,
-    file_okay=False,
-    dir_okay=True,
-    readable=True,
-    writable=False,
-)
-
-
-Config = threading.local()
-
-
-@click.command()
-@click.option(
-    "-p",
-    "--pyi-dir",
-    type=Directory(),
-    default="types",
-    help="Where to find .pyi stubs.",
-    show_default=True,
-)
-@click.option(
-    "-t",
-    "--target-dir",
-    type=Directory(exists=False, writable=True),
-    default="typed-src",
-    help="Where to write annotated sources.",
-    show_default=True,
-)
-@click.option(
-    "-i",
-    "--incremental",
-    is_flag=True,
-    help="Allow for missing type annotations in both stubs and the source.",
-)
-@click.option("-q", "--quiet", is_flag=True, help="Don't emit warnings, just errors.")
-@click.option(
-    "-a", "--replace-any", is_flag=True, help="Allow replacing Any annotations."
-)
-@click.option(
-    "--hg", is_flag=True, help="Post-process files to preserve implicit byte literals."
-)
-@click.option("--traceback", is_flag=True, help="Show a Python traceback on error.")
-@click.argument("src", nargs=-1, type=Directory(file_okay=True))
-@click.version_option(version=__version__)
-def main(src, pyi_dir, target_dir, incremental, quiet, replace_any, hg, traceback):
-    """Re-apply type annotations from .pyi stubs to your codebase."""
-    Config.incremental = incremental
-    Config.replace_any = replace_any
-    returncode = 0
-    for src_entry in src:
-        for file, error, exc_type, tb in retype_path(
-            Path(src_entry),
-            pyi_dir=Path(pyi_dir),
-            targets=Path(target_dir),
-            src_explicitly_given=True,
-            quiet=quiet,
-            hg=hg,
-        ):
-            print(f"error: {file}: {error}", file=sys.stderr)
-            if traceback:
-                print("Traceback (most recent call last):", file=sys.stderr)
-                for line in tb:
-                    print(line, file=sys.stderr, end="")
-                print(f"{exc_type.__name__}: {error}", file=sys.stderr)
-            returncode += 1
-    if not src and not quiet:
-        print("warning: no sources given", file=sys.stderr)
-
-    # According to http://tldp.org/LDP/abs/html/index.html starting with 126
-    # we have special returncodes.
-    sys.exit(min(returncode, 125))
+from .config import ReApplyFlags
+from .version import __version__
 
 
 def retype_path(
-    src, pyi_dir, targets, *, src_explicitly_given=False, quiet=False, hg=False
+    src,
+    pyi_dir,
+    targets,
+    *,
+    src_explicitly_given=False,
+    quiet=False,
+    hg=False,
+    flags=None,
 ):
     """Recursively retype files or directories given. Generate errors."""
     if src.is_dir():
@@ -112,16 +44,21 @@ def retype_path(
         ):
             nested = file.relative_to(src).parent
             yield from retype_path(
-                file, pyi_dir / nested, targets / nested, quiet=quiet, hg=hg
+                file,
+                pyi_dir / nested,
+                targets / nested,
+                quiet=quiet,
+                hg=hg,
+                flags=flags,
             )
     elif src.suffix == ".py" or src_explicitly_given:
         try:
-            retype_file(src, pyi_dir, targets, quiet=quiet, hg=hg)
+            retype_file(src, pyi_dir, targets, quiet=quiet, hg=hg, flags=flags)
         except Exception as e:
             yield (src, str(e), type(e), traceback.format_tb(e.__traceback__))
 
 
-def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False):
+def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False, flags=None):
     """Retype `src`, finding types in `pyi_dir`. Save in `targets`.
 
     The file should remain formatted exactly as it was before, save for:
@@ -131,6 +68,8 @@ def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False):
 
     Type comments in sources are normalized to type annotations.
     """
+    if flags is None:
+        flags = ReApplyFlags()
     with tokenize.open(src) as src_buffer:
         src_encoding = src_buffer.encoding
         src_node = lib2to3_parse(src_buffer.read())
@@ -146,8 +85,8 @@ def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False):
     else:
         pyi_ast = ast3.parse(pyi_txt)
         assert isinstance(pyi_ast, ast3.Module)
-        reapply_all(pyi_ast.body, src_node)
-    fix_remaining_type_comments(src_node)
+        reapply_all(pyi_ast.body, src_node, flags)
+    fix_remaining_type_comments(src_node, flags)
     targets.mkdir(parents=True, exist_ok=True)
     with open(targets / src.name, "w", encoding=src_encoding) as target_file:
         target_file.write(lib2to3_unparse(src_node, hg=hg))
@@ -182,25 +121,25 @@ def lib2to3_unparse(node, *, hg=False):
     """Given a lib2to3 node, return its string representation."""
     code = str(node)
     if hg:
-        from retype_hgext import apply_job_security
+        from retype.retype_hgext import apply_job_security
 
         code = apply_job_security(code)
     return code
 
 
-def reapply_all(ast_node, lib2to3_node):
+def reapply_all(ast_node, lib2to3_node, flags):
     """Reapplies the typed_ast node into the lib2to3 tree.
 
     Also does post-processing. This is done in reverse order to enable placing
     TypeVars and aliases that depend on one another.
     """
-    late_processing = reapply(ast_node, lib2to3_node)
+    late_processing = reapply(ast_node, lib2to3_node, flags)
     for lazy_func in reversed(late_processing):
         lazy_func()
 
 
 @singledispatch
-def reapply(ast_node, lib2to3_node):
+def reapply(ast_node, lib2to3_node, flags):
     """Reapplies the typed_ast node into the lib2to3 tree.
 
     By default does nothing.
@@ -209,18 +148,18 @@ def reapply(ast_node, lib2to3_node):
 
 
 @reapply.register(list)
-def _r_list(l, lib2to3_node):
+def _r_list(l, lib2to3_node, flags):
     if lib2to3_node.type not in (syms.file_input, syms.suite):
         return []
 
     result = []
     for pyi_node in l:
-        result.extend(reapply(pyi_node, lib2to3_node))
+        result.extend(reapply(pyi_node, lib2to3_node, flags))
     return result
 
 
 @reapply.register(ast3.ImportFrom)
-def _r_importfrom(import_from, node):
+def _r_importfrom(import_from, node, flags):
     assert node.type in (syms.file_input, syms.suite)
     level = import_from.level or 0
     module = "." * level + (import_from.module or "")
@@ -242,7 +181,7 @@ def _r_importfrom(import_from, node):
 
 
 @reapply.register(ast3.Import)
-def _r_import(import_, node):
+def _r_import(import_, node, flags):
     assert node.type in (syms.file_input, syms.suite)
     names = import_.names
     for child in flatten_some(node.children):
@@ -262,7 +201,7 @@ def _r_import(import_, node):
 
 
 @reapply.register(ast3.ClassDef)
-def _r_classdef(cls, node):
+def _r_classdef(cls, node, flags):
     assert node.type in (syms.file_input, syms.suite)
     name = Leaf(token.NAME, cls.name)
     for child in flatten_some(node.children):
@@ -277,13 +216,13 @@ def _r_classdef(cls, node):
 
     result = []
     for ast_elem in cls.body:
-        result.extend(reapply(ast_elem, cls_node))
+        result.extend(reapply(ast_elem, cls_node, flags))
     return result
 
 
 @reapply.register(ast3.AsyncFunctionDef)
 @reapply.register(ast3.FunctionDef)
-def _r_functiondef(fun, node):
+def _r_functiondef(fun, node, flags):
     assert node.type in (syms.file_input, syms.suite)
     name = Leaf(token.NAME, fun.name)
     pyi_decorators = decorator_names(fun.decorator_list)
@@ -332,10 +271,10 @@ def _r_functiondef(fun, node):
 
             try:
                 annotate_parameters(
-                    child.children[offset + 1], args, is_method=is_method
+                    child.children[offset + 1], args, is_method=is_method, flags=flags
                 )
-                annotate_return(child.children, returns, offset + 2)
-                reapply(fun.body, child.children[-1])
+                annotate_return(child.children, returns, offset + 2, flags)
+                reapply(fun.body, child.children[-1], flags)
                 remove_function_signature_type_comment(child.children[-1])
             except ValueError as ve:
                 raise ValueError(
@@ -350,7 +289,7 @@ def _r_functiondef(fun, node):
 
 
 @reapply.register(ast3.AnnAssign)
-def _r_annassign(annassign, body):
+def _r_annassign(annassign, body, flags):
     assert body.type in (syms.file_input, syms.suite)
 
     target = annassign.target
@@ -385,7 +324,10 @@ def _r_annassign(annassign, body):
                         f"unexpected element after annotation: {str(expr[3])}"
                     )
                 expr[1].children[1] = maybe_replace_any_if_equal(
-                    f"variable annotation for {name!r}", annotation, expr[1].children[1]
+                    f"variable annotation for {name!r}",
+                    annotation,
+                    expr[1].children[1],
+                    flags,
                 )
                 break
 
@@ -403,7 +345,10 @@ def _r_annassign(annassign, body):
                 type_comment = parse_type_comment(maybe_type_comment.group("type"))
                 actual_annotation = convert_annotation(type_comment)
                 ensure_annotations_equal(
-                    f"variable annotation for {name!r}", annotation, actual_annotation
+                    f"variable annotation for {name!r}",
+                    annotation,
+                    actual_annotation,
+                    flags,
                 )
                 # ...and remove the redundant comment
                 child.children[1].prefix = maybe_space_before_comment(
@@ -439,7 +384,7 @@ def _r_annassign(annassign, body):
 
 
 @reapply.register(ast3.Assign)
-def _r_assign(assign, body):
+def _r_assign(assign, body, flags):
     assert body.type in (syms.file_input, syms.suite)
 
     if len(assign.targets) != 1:
@@ -454,7 +399,7 @@ def _r_assign(assign, body):
         annassign = ast3.AnnAssign(
             target=assign.targets[0], annotation=tc, value=assign.value, simple=False
         )
-        return reapply(annassign, body)
+        return reapply(annassign, body, flags)
 
     if not isinstance(assign.targets[0], ast3.Name):
         # Type aliases cannot be attributes, etc.
@@ -480,7 +425,9 @@ def _r_assign(assign, body):
             and expr[0].value == name
             and expr[1] == _eq
         ):
-            expr[2] = maybe_replace_any_if_equal(f"alias {name!r}", value, expr[2])
+            expr[2] = maybe_replace_any_if_equal(
+                f"alias {name!r}", value, expr[2], flags=flags
+            )
             break
     else:
         # We need to defer placing aliases because we need to place them
@@ -727,7 +674,7 @@ def _dn_attribute(attr):
     return [serialize_attribute(attr)]
 
 
-def fix_remaining_type_comments(node):
+def fix_remaining_type_comments(node, flags):
     """Converts type comments in `node` to proper annotated assignments."""
     assert node.type == syms.file_input
 
@@ -737,9 +684,9 @@ def fix_remaining_type_comments(node):
             if n.type == token.NEWLINE and is_assignment(last_n):
                 fix_variable_annotation_type_comment(n, last_n)
             elif n.type == syms.funcdef and last_n.type == syms.suite:
-                fix_signature_annotation_type_comment(n, last_n, offset=1)
+                fix_signature_annotation_type_comment(n, last_n, offset=1, flags=flags)
             elif n.type == syms.async_funcdef and last_n.type == syms.suite:
-                fix_signature_annotation_type_comment(n, last_n, offset=2)
+                fix_signature_annotation_type_comment(n, last_n, offset=2, flags=flags)
         last_n = n
 
 
@@ -761,7 +708,7 @@ def fix_variable_annotation_type_comment(node, last):
     node.prefix = maybe_space_before_comment(m.group("nl"))
 
 
-def fix_signature_annotation_type_comment(node, last, *, offset):
+def fix_signature_annotation_type_comment(node, last, *, offset, flags):
     for ch in last.children:
         if ch.type == token.INDENT:
             break
@@ -778,8 +725,8 @@ def fix_signature_annotation_type_comment(node, last, *, offset):
     # `is_method=True` below only means we allow for missing first annotation.
     # It's not even worth checking at this point.
     copy_arguments_to_annotations(ast_args, args_tc, is_method=True)
-    annotate_parameters(parameters, ast_args, is_method=True)
-    annotate_return(node.children, returns_tc, offset + 2)
+    annotate_parameters(parameters, ast_args, is_method=True, flags=flags)
+    annotate_return(node.children, returns_tc, offset + 2, flags)
     remove_function_signature_type_comment(last)
 
 
@@ -843,7 +790,7 @@ def append_after_imports(stmt_to_insert, node):
     node.children.insert(offset, stmt_to_insert)
 
 
-def annotate_parameters(parameters, ast_args, *, is_method=False):
+def annotate_parameters(parameters, ast_args, *, is_method=False, flags):
     params = parameters.children[1:-1]
     if len(params) == 0:
         return  # FIXME: handle checking if the expected (AST) function is also empty.
@@ -860,8 +807,11 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
     defaults = [None] * num_args_no_defaults
     defaults.extend(ast_args.defaults)
     typedargslist.extend(
-        gen_annotated_params(ast_args.args, defaults, params, is_method=is_method)
+        gen_annotated_params(
+            ast_args.args, defaults, params, is_method=is_method, flags=flags
+        )
     )
+    hopefully_vararg = None
     if ast_args.vararg or ast_args.kwonlyargs:
         try:
             hopefully_star, hopefully_vararg = pop_param(params)
@@ -886,7 +836,9 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
             raise ValueError(f".pyi file expects *{ast_args.vararg.arg} in source")
 
         typedargslist.append(
-            get_annotated_param(hopefully_vararg, ast_args.vararg, missing_ok=True)
+            get_annotated_param(
+                hopefully_vararg, ast_args.vararg, missing_ok=True, flags=flags
+            )
         )
 
     if ast_args.kwonlyargs:
@@ -899,7 +851,11 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
 
         typedargslist.extend(
             gen_annotated_params(
-                ast_args.kwonlyargs, ast_args.kw_defaults, params, implicit_default=True
+                ast_args.kwonlyargs,
+                ast_args.kw_defaults,
+                params,
+                implicit_default=True,
+                flags=flags,
             )
         )
 
@@ -924,7 +880,9 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
             typedargslist.append(new(_comma))
             typedargslist.append(new(hopefully_dstar))
             typedargslist.append(
-                get_annotated_param(hopefully_kwarg, ast_args.kwarg, missing_ok=True)
+                get_annotated_param(
+                    hopefully_kwarg, ast_args.kwarg, missing_ok=True, flags=flags
+                )
             )
 
     if params:
@@ -958,10 +916,10 @@ def annotate_parameters(parameters, ast_args, *, is_method=False):
         ]
 
 
-def annotate_return(function, ast_returns, offset):
+def annotate_return(function, ast_returns, offset, flags):
     if ast_returns is None:
         if function[offset] == _colon:
-            if Config.incremental:
+            if flags.incremental:
                 return
 
             raise ValueError(
@@ -978,7 +936,7 @@ def annotate_return(function, ast_returns, offset):
     ret_stmt.prefix = " "
     if function[offset] == _rarrow:
         function[offset + 1] = maybe_replace_any_if_equal(
-            "return value", ret_stmt, function[offset + 1]
+            "return value", ret_stmt, function[offset + 1], flags
         )
     elif function[offset] == _colon:
         function.insert(offset, new(_rarrow))
@@ -1149,7 +1107,7 @@ def copy_type_comment_to_annotation(arg):
     arg.annotation = ann
 
 
-def maybe_replace_any_if_equal(name, expected, actual):
+def maybe_replace_any_if_equal(name, expected, actual, flags):
     """Return the type given in `expected`.
 
     Raise ValueError if `expected` isn't equal to `actual`.  If --replace-any is
@@ -1164,7 +1122,7 @@ def maybe_replace_any_if_equal(name, expected, actual):
        being replaced.  This way they can use an alias.
     """
     is_equal = expected == actual
-    if not is_equal and Config.replace_any:
+    if not is_equal and flags.replace_any:
         actual_str = minimize_whitespace(str(actual))
         if actual_str and actual_str[0] in {'"', "'"}:
             actual_str = actual_str[1:-1]
@@ -1188,12 +1146,12 @@ def ensure_no_annotation(ann):
         )
 
 
-def ensure_annotations_equal(name, expected, actual):
+def ensure_annotations_equal(name, expected, actual, flags):
     """Raise ValueError if `expected` isn't equal to `actual`.
 
     If --replace-any is used, the Any type in `actual` is considered equal.
     """
-    maybe_replace_any_if_equal(name, expected, actual)
+    maybe_replace_any_if_equal(name, expected, actual, flags)
 
 
 def remove_function_signature_type_comment(body):
@@ -1256,9 +1214,9 @@ def pop_param(params):
 
 
 def gen_annotated_params(
-    args, defaults, params, *, implicit_default=False, is_method=False
+    args, defaults, params, *, implicit_default=False, is_method=False, flags
 ):
-    missing_ok = is_method or Config.incremental
+    missing_ok = is_method or flags.incremental
     for arg, expected_default in zip(args, defaults):
         yield new(_comma)
 
@@ -1288,17 +1246,17 @@ def gen_annotated_params(
                 + f"but the .pyi file does"
             )
 
-        node = get_annotated_param(param, arg, missing_ok=missing_ok)
+        node = get_annotated_param(param, arg, missing_ok=missing_ok, flags=flags)
         yield node
         if actual_default:
             whitespace = " " if node.type == syms.tname else ""
             yield new(_eq, prefix=whitespace)
             yield new(actual_default, prefix=whitespace)
 
-        missing_ok = Config.incremental
+        missing_ok = flags.incremental
 
 
-def get_annotated_param(node, arg, *, missing_ok=False):
+def get_annotated_param(node, arg, *, missing_ok=False, flags):
     if node.type not in (token.NAME, syms.tname):
         raise NotImplementedError(f"unexpected node token: `{node}`")
 
@@ -1328,7 +1286,9 @@ def get_annotated_param(node, arg, *, missing_ok=False):
         ann.prefix = " "
 
     if actual_ann is not None:
-        ensure_annotations_equal("annotation for {arg.arg!r}", ann, actual_ann)
+        ensure_annotations_equal(
+            "annotation for {arg.arg!r}", ann, actual_ann, flags=flags
+        )
 
     return Node(syms.tname, [new(node), new(_colon), ann])
 
@@ -1509,5 +1469,5 @@ _type_comment_re = re.compile(
     re.MULTILINE | re.VERBOSE,
 )
 
-if __name__ == "__main__":
-    main()
+
+__all__ = ("__version__", "retype_path", "retype_file")

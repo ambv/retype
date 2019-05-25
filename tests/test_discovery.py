@@ -1,11 +1,12 @@
 from collections import namedtuple
+from pathlib import Path
 
 import pytest
 
 from retype import walk_not_git_ignored
 
 
-@pytest.fixture()
+@pytest.fixture()  # type: ignore
 def build(tmp_path):
     def _build(files):
         for file, content in files.items():
@@ -20,9 +21,11 @@ def build(tmp_path):
 Case = namedtuple("Case", ["files", "found", "cwd"])
 WALK_TESTS = {
     "no_ignore_root": Case({"a.py": ""}, ["a.py"], "."),
-    "no_ignore_root_within": Case({"b/a.py": ""}, ["b/a.py"], "."),
+    "no_ignore_root_within": Case({"b/a.py": ""}, [str(Path("b") / "a.py")], "."),
     "no_ignore_keep_py_only": Case(
-        {"a.py": "", "a.pyi": "", "b/a.pyi": "", "b/a.py": ""}, ["a.py", "b/a.py"], "."
+        {"a.py": "", "a.pyi": "", "b/a.pyi": "", "b/a.py": ""},
+        ["a.py", str(Path("b") / "a.py")],
+        ".",
     ),
     "ignore_py_at_root": Case(
         {".gitignore": "*.py", "a.py": "", "b/a.py": ""}, [], "."
@@ -41,7 +44,9 @@ WALK_TESTS = {
 }
 
 
-@pytest.mark.parametrize("case", WALK_TESTS.values(), ids=list(WALK_TESTS.keys()))
+@pytest.mark.parametrize(  # type: ignore
+    "case", WALK_TESTS.values(), ids=list(WALK_TESTS.keys())
+)
 def test_walk(case: Case, build, monkeypatch):
     path = build(case.files)
     dest = path / case.cwd
