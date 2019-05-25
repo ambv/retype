@@ -19,81 +19,7 @@ import click
 from pathspec import PathSpec
 from typed_ast import ast3
 
-__version__ = "19.5.0"
-
-Directory = partial(
-    click.Path,
-    exists=True,
-    file_okay=False,
-    dir_okay=True,
-    readable=True,
-    writable=False,
-)
-
-
-Config = threading.local()
-
-
-@click.command()
-@click.option(
-    "-p",
-    "--pyi-dir",
-    type=Directory(),
-    default="types",
-    help="Where to find .pyi stubs.",
-    show_default=True,
-)
-@click.option(
-    "-t",
-    "--target-dir",
-    type=Directory(exists=False, writable=True),
-    default="typed-src",
-    help="Where to write annotated sources.",
-    show_default=True,
-)
-@click.option(
-    "-i",
-    "--incremental",
-    is_flag=True,
-    help="Allow for missing type annotations in both stubs and the source.",
-)
-@click.option("-q", "--quiet", is_flag=True, help="Don't emit warnings, just errors.")
-@click.option(
-    "-a", "--replace-any", is_flag=True, help="Allow replacing Any annotations."
-)
-@click.option(
-    "--hg", is_flag=True, help="Post-process files to preserve implicit byte literals."
-)
-@click.option("--traceback", is_flag=True, help="Show a Python traceback on error.")
-@click.argument("src", nargs=-1, type=Directory(file_okay=True))
-@click.version_option(version=__version__)
-def main(src, pyi_dir, target_dir, incremental, quiet, replace_any, hg, traceback):
-    """Re-apply type annotations from .pyi stubs to your codebase."""
-    Config.incremental = incremental
-    Config.replace_any = replace_any
-    returncode = 0
-    for src_entry in src:
-        for file, error, exc_type, tb in retype_path(
-            Path(src_entry),
-            pyi_dir=Path(pyi_dir),
-            targets=Path(target_dir),
-            src_explicitly_given=True,
-            quiet=quiet,
-            hg=hg,
-        ):
-            print(f"error: {file}: {error}", file=sys.stderr)
-            if traceback:
-                print("Traceback (most recent call last):", file=sys.stderr)
-                for line in tb:
-                    print(line, file=sys.stderr, end="")
-                print(f"{exc_type.__name__}: {error}", file=sys.stderr)
-            returncode += 1
-    if not src and not quiet:
-        print("warning: no sources given", file=sys.stderr)
-
-    # According to http://tldp.org/LDP/abs/html/index.html starting with 126
-    # we have special returncodes.
-    sys.exit(min(returncode, 125))
+from .version import __version__
 
 
 def retype_path(
@@ -182,7 +108,7 @@ def lib2to3_unparse(node, *, hg=False):
     """Given a lib2to3 node, return its string representation."""
     code = str(node)
     if hg:
-        from retype_hgext import apply_job_security
+        from src.retype import apply_job_security
 
         code = apply_job_security(code)
     return code
@@ -1508,6 +1434,3 @@ _type_comment_re = re.compile(
     """,
     re.MULTILINE | re.VERBOSE,
 )
-
-if __name__ == "__main__":
-    main()

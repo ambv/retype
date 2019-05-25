@@ -6,13 +6,13 @@ from unittest import TestCase, main
 from typed_ast import ast3
 
 from retype import (
-    Config,
     _type_comment_re,
     fix_remaining_type_comments,
     lib2to3_parse,
     reapply_all,
     serialize_attribute,
 )
+from retype.__main__ import Config
 
 
 class RetypeTestCase(TestCase):
