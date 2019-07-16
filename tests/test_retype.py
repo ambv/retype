@@ -15,6 +15,7 @@ from retype import (
     fix_remaining_type_comments,
     lib2to3_parse,
     reapply_all,
+    retype_file,
     retype_path,
     serialize_attribute,
 )
@@ -28,6 +29,14 @@ def as_cwd(path):
         yield
     finally:
         os.chdir(old)
+
+
+def test_does_not_error_on_empty_file(tmp_path):
+    init_py = tmp_path / "__init__.py"
+    init_py.write_text("")
+    assert len(init_py.read_text()) == 0
+    retype_file(init_py, tmp_path, tmp_path)
+    assert len(init_py.read_text()) == 0
 
 
 def test_can_run_against_current_directory(tmp_path):

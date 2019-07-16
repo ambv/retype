@@ -72,8 +72,11 @@ def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False, flags=None):
     if flags is None:
         flags = ReApplyFlags()
     with tokenize.open(src) as src_buffer:
+        src_contents = src_buffer.read()
+        if src_contents == "":
+            return
         src_encoding = src_buffer.encoding
-        src_node = lib2to3_parse(src_buffer.read())
+        src_node = lib2to3_parse(src_contents)
     try:
         with open((pyi_dir / src.name).with_suffix(".pyi")) as pyi_file:
             pyi_txt = pyi_file.read()
