@@ -32,6 +32,7 @@ def retype_path(
     flags=None,
 ):
     """Recursively retype files or directories given. Generate errors."""
+    src = src.absolute()
     if src.is_dir():
         extra_ignore = []
         for folder in [pyi_dir, targets]:
@@ -1390,7 +1391,6 @@ def _load_ignore(at_path, parent_spec, ignores):
 
 
 def walk_not_git_ignored(path, keep, extra_ignore):
-    path = path.absolute()
     spec = PathSpec.from_lines("gitwildmatch", [".git"] + extra_ignore)
     ignores = {}
     # detect git folder, collect ignores up to root

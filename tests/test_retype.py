@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import os
+from contextlib import contextmanager
+from pathlib import Path
 from textwrap import dedent
 from typing import Optional
 from unittest import TestCase, main
@@ -12,8 +15,30 @@ from retype import (
     fix_remaining_type_comments,
     lib2to3_parse,
     reapply_all,
+    retype_path,
     serialize_attribute,
 )
+
+
+@contextmanager
+def as_cwd(path):
+    old = Path.cwd()
+    try:
+        os.chdir(path)
+        yield
+    finally:
+        os.chdir(old)
+
+
+def test_can_run_against_current_directory(tmp_path):
+    # Regression test for `retype --pyi-dir . --target-dir . .`
+    (tmp_path / "main.py").write_text("print('hello!')")
+    pwd = Path(".")
+    errors = []
+    with as_cwd(tmp_path):
+        for path, exc_msg, exc_type, exc_tb in retype_path(pwd, pwd, pwd):
+            errors.append((path, exc_msg, exc_type, exc_tb))
+    assert not errors
 
 
 class RetypeTestCase(TestCase):
