@@ -141,7 +141,7 @@ MIT
 
 ## Change Log
 
-### next
+### 19.9.0
 
 * add a module entry-point, now you can call it via ``python -m retype``
 * automatically all files excluded by ``.gitignore`` on merge of folders
