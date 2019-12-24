@@ -1135,10 +1135,11 @@ def maybe_replace_any_if_equal(name, expected, actual, flags):
     if not is_equal:
         expected_annotation = minimize_whitespace(str(expected))
         actual_annotation = minimize_whitespace(str(actual))
-        raise ValueError(
-            f"incompatible existing {name}. "
-            + f"Expected: {expected_annotation!r}, actual: {actual_annotation!r}"
-        )
+        if expected_annotation != actual_annotation:
+            raise ValueError(
+                f"incompatible existing {name}. "
+                + f"Expected: {expected_annotation!r}, actual: {actual_annotation!r}"
+            )
 
     return expected or actual
 

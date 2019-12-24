@@ -2486,6 +2486,15 @@ class PostProcessTestCase(RetypeTestCase):
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
+    def test_overwriting_alias_with_typing(self) -> None:
+        file_content = """
+        import typing
+
+        OPTIONAL_STR = typing.Optional[str]
+        """
+
+        self.assertReapplyVisible(file_content, file_content, file_content)
+
 
 class TypeCommentReTestCase(TestCase):
     def assertMatch(self, input: str, *, type: str, nl: str) -> None:
