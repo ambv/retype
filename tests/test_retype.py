@@ -2490,7 +2490,28 @@ class PostProcessTestCase(RetypeTestCase):
         file_content = """
         import typing
 
-        OPTIONAL_STR = typing.Optional[str]
+        CUSTOM_TYPE = typing.Union[
+            str,
+            bytes,
+            None,
+            typing.List[typing.Union[str, bytes]],
+            typing.Tuple[typing.Union[str, bytes], ...],
+        ]
+        """
+
+        self.assertReapplyVisible(file_content, file_content, file_content)
+
+    def test_overwriting_alias_without_typing(self) -> None:
+        file_content = """
+        from typing import Union, List, Tuple
+
+        CUSTOM_TYPE = Union[
+            str,
+            bytes,
+            None,
+            List[Union[str, bytes]],
+            Tuple[Union[str, bytes], ...],
+        ]
         """
 
         self.assertReapplyVisible(file_content, file_content, file_content)
