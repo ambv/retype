@@ -12,7 +12,7 @@ include = '\.pyi?$'
 
 [tool.isort]
 profile = 'black'
-known_first_party = ['tox_ini_fmt']
+known_first_party = ['retype']
 
 [tool.setuptools_scm]
 write_to = 'src/retype/version.py'

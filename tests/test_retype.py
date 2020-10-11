@@ -472,9 +472,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
     def test_complex_sig1(self) -> None:
         pyi_txt = "def fun(a1: str, *args: str, kwonly1: int, **kwargs) -> None: ...\n"
         src_txt = "def fun(a1, *args, kwonly1=None, **kwargs) -> None: ...\n"
-        expected_txt = (
-            "def fun(a1: str, *args: str, kwonly1: int = None, **kwargs) -> None: ...\n"
-        )  # noqa
+        expected_txt = "def fun(a1: str, *args: str, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
@@ -482,8 +480,8 @@ class FunctionArgumentTestCase(RetypeTestCase):
         pyi_txt = "def fun(a1: str, *, kwonly1: int, **kwargs) -> None: ...\n"
         src_txt = "def fun(a1, *, kwonly1=None, **kwargs) -> None: ...\n"
         expected_txt = (
-            "def fun(a1: str, *, kwonly1: int = None, **kwargs) -> None: ...\n"
-        )  # noqa
+            "def fun(a1: str, *, kwonly1: int = None, **kwargs) -> None: ...\n"  # noqa
+        )
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
@@ -514,9 +512,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
             ...
         """
         src_txt = "def fun(a1, *, kwonly1=None, **kwargs) -> None: ...\n"
-        expected_txt = (
-            "def fun(a1: str, *, kwonly1: int = None, **kwargs: Any) -> None: ...\n"
-        )  # noqa
+        expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs: Any) -> None: ...\n"  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
@@ -543,9 +539,7 @@ class FunctionArgumentTestCase(RetypeTestCase):
             ...
         """
         src_txt = "def fun(a1, *, kwonly1=None, **kwargs): ...\n"
-        expected_txt = (
-            "def fun(a1: str, *, kwonly1: int = None, **kwargs: Any) -> None: ...\n"
-        )  # noqa
+        expected_txt = "def fun(a1: str, *, kwonly1: int = None, **kwargs: Any) -> None: ...\n"  # noqa
         self.assertReapply(pyi_txt, src_txt, expected_txt)
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
