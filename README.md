@@ -148,6 +148,10 @@ MIT
 
 ## Change Log
 
+### 20.10.0
+ 
+* Mark python3.8 and python3.9 compatible
+
 ### 19.9.0
 
 * add a module entry-point, now you can call it via ``python -m retype``
