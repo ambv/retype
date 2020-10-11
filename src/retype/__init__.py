@@ -823,7 +823,7 @@ def annotate_parameters(parameters, ast_args, *, is_method=False, flags):
                 raise ValueError
         except (IndexError, ValueError):
             raise ValueError(
-                f".pyi file expects *args or keyword-only arguments in source"
+                ".pyi file expects *args or keyword-only arguments in source"
             ) from None
         else:
             typedargslist.append(new(_comma))
@@ -849,7 +849,7 @@ def annotate_parameters(parameters, ast_args, *, is_method=False, flags):
         if not ast_args.vararg:
             if hopefully_vararg != _comma:
                 raise ValueError(
-                    f".pyi file expects keyword-only arguments but "
+                    ".pyi file expects keyword-only arguments but "
                     + f"*{str(hopefully_vararg).strip()} found in source"
                 )
 
@@ -1053,7 +1053,7 @@ def copy_arguments_to_annotations(args, type_comment, *, is_method=False):
             pass  # fine, we're just skipping `self`, `cls`, etc.
         else:
             raise ValueError(
-                f"number of arguments in type comment doesn't match; "
+                "number of arguments in type comment doesn't match; "
                 + f"expected {expected}, found {actual}"
             )
 
@@ -1239,7 +1239,7 @@ def gen_annotated_params(
             if not implicit_default or actual_default != _none:
                 param_s = minimize_whitespace(str(param))
                 raise ValueError(
-                    f".pyi file does not specify default value for arg "
+                    ".pyi file does not specify default value for arg "
                     + f"`{param_s}` but the source does"
                 )
 
@@ -1247,7 +1247,7 @@ def gen_annotated_params(
             param_s = minimize_whitespace(str(param))
             raise ValueError(
                 f"source file does not specify default value for arg `{param_s}` "
-                + f"but the .pyi file does"
+                + "but the .pyi file does"
             )
 
         node = get_annotated_param(param, arg, missing_ok=missing_ok, flags=flags)
@@ -1281,7 +1281,7 @@ def get_annotated_param(node, arg, *, missing_ok=False, flags):
 
             raise ValueError(
                 f".pyi file is missing annotation for {arg.arg!r} and source "
-                + f"doesn't provide it either"
+                + "doesn't provide it either"
             )
 
         ann = new(actual_ann)
