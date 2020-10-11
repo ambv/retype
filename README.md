@@ -4,7 +4,7 @@
 PyPi](https://badge.fury.io/py/retype.svg)](https://badge.fury.io/py/retype)
 [![Supported Python
 versions](https://img.shields.io/pypi/pyversions/retype.svg)](https://pypi.org/project/retype/)
-[![Build Status](https://dev.azure.com/ambv/retype/_apis/build/status/ambv.retype?branchName=master)](https://dev.azure.com/ambv/retype/_build/latest?definitionId=1&branchName=master)
+![check](https://github.com/ambv/retype/workflows/check/badge.svg)
 [![Code style:
 black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Downloads](https://pepy.tech/badge/retype/month)](https://pepy.tech/project/retype/month)
