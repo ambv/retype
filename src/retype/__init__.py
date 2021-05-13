@@ -1291,7 +1291,7 @@ def get_annotated_param(node, arg, *, missing_ok=False, flags):
 
     if actual_ann is not None:
         ensure_annotations_equal(
-            "annotation for {arg.arg!r}", ann, actual_ann, flags=flags
+            f"annotation for {arg.arg!r}", ann, actual_ann, flags=flags
         )
 
     return Node(syms.tname, [new(node), new(_colon), ann])
