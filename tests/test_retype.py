@@ -2259,6 +2259,23 @@ class ClassVariableTestCase(RetypeTestCase):
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
 
+class NormalizationTestCase(RetypeTestCase):
+    def test_simple_function(self) -> None:
+        pyi_txt = src_txt = expected_txt = """
+        def test(fn: Callable[[str], None]) -> None: ...
+        """
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_more_complex_function(self) -> None:
+        pyi_txt = src_txt = expected_txt = """
+        def build(tmp_path: Path) -> Callable[[Dict[str, str]], Path]:
+            def _build(files: Dict[str, str]) -> Path:
+              ...
+            return _build
+        """
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+
 class SerializeTestCase(RetypeTestCase):
     def test_serialize_attribute(self) -> None:
         src_txt = "a.b.c"
