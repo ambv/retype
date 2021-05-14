@@ -2259,6 +2259,24 @@ class ClassVariableTestCase(RetypeTestCase):
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
 
+class TypeAliasTestCase(RetypeTestCase):
+    def test_type_alias_import(self) -> None:
+        pyi_txt = src_txt = expected_txt = """
+        import typing
+
+        OPTIONAL_STR = typing.Optional[str]
+        """
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_type_alias_from_import(self) -> None:
+        pyi_txt = src_txt = expected_txt = """
+        from typing import Optional
+
+        OPTIONAL_STR = Optional[str]
+        """
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+
 class NormalizationTestCase(RetypeTestCase):
     def test_simple_function(self) -> None:
         pyi_txt = src_txt = expected_txt = """

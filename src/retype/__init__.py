@@ -494,11 +494,23 @@ def convert_annotation(ann):
 
 
 def normalize_node(node):
-    """Normalizes nodes to match pytree.convert"""
+    """Normalizes nodes to match pytree.convert and flatten power nodes"""
     if len(node.children) == 1:
         return node.children[0]
 
     node.children = [normalize_node(i) for i in node.children]
+
+    # if the node is a power node inline child power nodes
+    if node.type == syms.power:
+        children = []
+        for child in node.children:
+            if child.type == syms.power:
+                children.extend(child.children)
+            else:
+                children.append(child)
+
+        node.children = children
+
     return node
 
 
@@ -563,8 +575,13 @@ def _c_tuple(tup):
 
 @_convert_annotation.register(ast3.Attribute)
 def _c_attribute(attr):
-    # This is hacky. ¯\_(ツ)_/¯
-    return Leaf(token.NAME, f"{_convert_annotation(attr.value)}.{attr.attr}")
+    return Node(
+        syms.power,
+        [
+            _convert_annotation(attr.value),
+            Node(syms.trailer, [new(_dot), Leaf(token.NAME, attr.attr)]),
+        ],
+    )
 
 
 @_convert_annotation.register(ast3.Call)
