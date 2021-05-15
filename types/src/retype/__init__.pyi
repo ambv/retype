@@ -63,7 +63,7 @@ def copy_arguments_to_annotations(
 def parse_arguments(arguments: str) -> ast3.arguments: ...
 def parse_type_comment(type_comment: str) -> ast3.expr: ...
 def parse_signature_type_comment(  # type: ignore
-    type_comment: str
+    type_comment: str,
 ) -> Tuple[Union[ast3.expr, List[ast3.expr]], ast3.expr]:
     argtypes: Union[ast3.expr, List[ast3.expr]]
 

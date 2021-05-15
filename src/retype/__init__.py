@@ -1505,4 +1505,8 @@ _type_comment_re = re.compile(
 )
 
 
-__all__ = ("__version__", "retype_path", "retype_file")
+__all__ = (
+    "__version__",
+    "retype_path",
+    "retype_file",
+)
