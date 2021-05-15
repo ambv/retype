@@ -495,10 +495,12 @@ def convert_annotation(ann):
 
 def normalize_node(node):
     """Normalizes nodes to match pytree.convert and flatten power nodes"""
-    if len(node.children) == 1:
-        return node.children[0]
 
-    node.children = [normalize_node(i) for i in node.children]
+    if isinstance(node, Node):
+        if len(node.children) == 1:
+            return node.children[0]
+
+        node.children = [normalize_node(i) for i in node.children]
 
     # if the node is a power node inline child power nodes
     if node.type == syms.power:
@@ -1143,6 +1145,16 @@ def copy_type_comment_to_annotation(arg):
     arg.annotation = ann
 
 
+def normalize_strings_to_repr(node):
+    """Normalize string leaf nodes to a repr since that is what we generate."""
+    if node.type == token.STRING:
+        node.value = repr(ast3.literal_eval(node.value))
+    elif isinstance(node, Node):
+        node.children = [normalize_strings_to_repr(i) for i in node.children]
+
+    return node
+
+
 def maybe_replace_any_if_equal(name, expected, actual, flags):
     """Return the type given in `expected`.
 
@@ -1157,10 +1169,11 @@ def maybe_replace_any_if_equal(name, expected, actual, flags):
     2. We want people to be able to explicitly state that they want Any without it
        being replaced.  This way they can use an alias.
     """
-    is_equal = expected == actual
+    normalized = normalize_strings_to_repr(actual.clone())
+    is_equal = expected == normalized
     if not is_equal and flags.replace_any:
-        actual_str = minimize_whitespace(str(actual))
-        if actual_str and actual_str[0] in {'"', "'"}:
+        actual_str = minimize_whitespace(str(normalized))
+        if actual.type == token.STRING and actual_str:
             actual_str = actual_str[1:-1]
         is_equal = actual_str in {"Any", "typing.Any", "t.Any"}
 
