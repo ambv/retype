@@ -284,7 +284,7 @@ def _r_functiondef(fun, node, flags):
                 raise ValueError(
                     f"Annotation problem in function {name.value!r}: "
                     + f"{lineno}:{column}: {ve}"
-                )
+                ) from ve
             break
     else:
         raise ValueError(f"Function {name.value!r} not found in source.")
@@ -1005,7 +1005,7 @@ def get_function_signature(fun, *, is_method=False):
             raise ValueError(
                 f"Annotation problem in function {fun.name!r}: "
                 + f"{fun.lineno}:{fun.col_offset + 1}: {exc}"
-            )
+            ) from exc
     copy_type_comments_to_annotations(args)
 
     return args, returns
@@ -1025,8 +1025,10 @@ def parse_signature_type_comment(type_comment):
     """
     try:
         result = ast3.parse(type_comment, "<func_type>", "func_type")
-    except SyntaxError:
-        raise ValueError(f"invalid function signature type comment: {type_comment!r}")
+    except SyntaxError as exc:
+        raise ValueError(
+            f"invalid function signature type comment: {type_comment!r}"
+        ) from exc
 
     assert isinstance(result, ast3.FunctionType)
     if len(result.argtypes) == 1:
