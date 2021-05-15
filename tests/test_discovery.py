@@ -6,7 +6,7 @@ import pytest
 from retype import walk_not_git_ignored
 
 
-@pytest.fixture()  # type: ignore
+@pytest.fixture()
 def build(tmp_path):
     def _build(files):
         for file, content in files.items():
@@ -44,9 +44,7 @@ WALK_TESTS = {
 }
 
 
-@pytest.mark.parametrize(  # type: ignore
-    "case", WALK_TESTS.values(), ids=list(WALK_TESTS.keys())
-)
+@pytest.mark.parametrize("case", WALK_TESTS.values(), ids=list(WALK_TESTS.keys()))
 def test_walk(case: Case, build, monkeypatch):
     path = build(case.files)
     dest = path / case.cwd

@@ -4,7 +4,7 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 from textwrap import dedent
-from typing import Optional
+from typing import Iterator, Optional
 from unittest import TestCase, main
 
 from typed_ast import ast3
@@ -22,7 +22,7 @@ from retype import (
 
 
 @contextmanager
-def as_cwd(path):
+def as_cwd(path: Path) -> Iterator[None]:
     old = Path.cwd()
     try:
         os.chdir(path)
