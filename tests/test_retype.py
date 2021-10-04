@@ -53,30 +53,33 @@ def test_can_run_against_current_directory(tmp_path):
 class RetypeTestCase(TestCase):
     maxDiff = None
 
-    def assertReapply(
-        self, pyi_txt, src_txt, expected_txt, *, incremental=False, replace_any=False
-    ):
+    def reapply(self, pyi_txt, src_txt, *, incremental=False, replace_any=False):
         pyi = ast3.parse(dedent(pyi_txt))
         src = lib2to3_parse(dedent(src_txt))
-        expected = lib2to3_parse(dedent(expected_txt))
         assert isinstance(pyi, ast3.Module)
         flags = ReApplyFlags(replace_any=replace_any, incremental=incremental)
         reapply_all(pyi.body, src, flags)
         fix_remaining_type_comments(src, flags)
+        return pyi, src
+
+    def assertReapply(
+        self, pyi_txt, src_txt, expected_txt, *, incremental=False, replace_any=False
+    ):
         self.longMessage = False
+        expected = lib2to3_parse(dedent(expected_txt))
+        pyi, src = self.reapply(
+            pyi_txt, src_txt, incremental=incremental, replace_any=replace_any
+        )
         self.assertEqual(expected, src, f"\n{expected!r} != \n{src!r}")
 
     def assertReapplyVisible(
         self, pyi_txt, src_txt, expected_txt, *, incremental=False, replace_any=False
     ):
-        flags = ReApplyFlags(replace_any=replace_any, incremental=incremental)
-        pyi = ast3.parse(dedent(pyi_txt))
-        src = lib2to3_parse(dedent(src_txt))
-        expected = lib2to3_parse(dedent(expected_txt))
-        assert isinstance(pyi, ast3.Module)
-        reapply_all(pyi.body, src, flags)
-        fix_remaining_type_comments(src, flags)
         self.longMessage = False
+        expected = lib2to3_parse(dedent(expected_txt))
+        pyi, src = self.reapply(
+            pyi_txt, src_txt, incremental=incremental, replace_any=replace_any
+        )
         self.assertEqual(
             str(expected), str(src), f"\n{str(expected)!r} != \n{str(src)!r}"
         )
@@ -90,14 +93,10 @@ class RetypeTestCase(TestCase):
         incremental=False,
         replace_any=False,
     ):
-        flags = ReApplyFlags(replace_any=replace_any, incremental=incremental)
-
         with self.assertRaises(expected_exception) as ctx:
-            pyi = ast3.parse(dedent(pyi_txt))
-            src = lib2to3_parse(dedent(src_txt))
-            assert isinstance(pyi, ast3.Module)
-            reapply_all(pyi.body, src, flags)
-            fix_remaining_type_comments(src, flags)
+            self.reapply(
+                pyi_txt, src_txt, incremental=incremental, replace_any=replace_any
+            )
         return ctx.exception
 
 
@@ -2291,6 +2290,22 @@ class NormalizationTestCase(RetypeTestCase):
               ...
             return _build
         """
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+    def test_strings_can_be_single_or_double_quotes(self) -> None:
+        pyi_txt = expected_txt = """
+        MODE = Literal['r', 'rb', 'w', 'wb']
+        E = TypeVar('_E', bound=Exception)
+        """
+        src_txt = """
+        MODE = Literal["r", "rb", "w", "wb"]
+        E = TypeVar("_E", bound=Exception)
+        """
+        self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
+
+        # allow the opposite quoting, but currently strings are always
+        # normalized to their repr form
+        pyi_txt, src_txt = src_txt, pyi_txt
         self.assertReapplyVisible(pyi_txt, src_txt, expected_txt)
 
 
