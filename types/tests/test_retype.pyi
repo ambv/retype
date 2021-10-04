@@ -1,6 +1,9 @@
 from lib2to3.pytree import Leaf, Node
+from pathlib import Path
 from typing import Tuple, Type, TypeVar, Union
 from unittest import TestCase
+
+from typed_ast import ast3
 
 _E = TypeVar("_E", bound=Exception)
 _LN = Union[Node, Leaf]
@@ -13,7 +16,7 @@ class RetypeTestCase(TestCase):
         *,
         incremental: bool = ...,
         replace_any: bool = ...,
-    ) -> Tuple[_LN, _LN]: ...
+    ) -> Tuple[ast3.Module, Node]: ...
     def assertReapply(
         self,
         pyi_txt: str,
@@ -41,3 +44,6 @@ class RetypeTestCase(TestCase):
         incremental: bool = ...,
         replace_any: bool = ...,
     ) -> _E: ...
+
+def test_can_run_against_current_directory(tmp_path: Path) -> None: ...
+def test_does_not_error_on_empty_file(tmp_path: Path) -> None: ...

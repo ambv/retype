@@ -74,7 +74,7 @@ def retype_file(src, pyi_dir, targets, *, quiet=False, hg=False, flags=None):
     with tokenize.open(src) as src_buffer:
         src_contents = src_buffer.read()
         if src_contents == "":
-            return
+            return None
         src_encoding = src_buffer.encoding
         src_node = lib2to3_parse(src_contents)
     try:
@@ -284,7 +284,7 @@ def _r_functiondef(fun, node, flags):
                 raise ValueError(
                     f"Annotation problem in function {name.value!r}: "
                     + f"{lineno}:{column}: {ve}"
-                )
+                ) from ve
             break
     else:
         raise ValueError(f"Function {name.value!r} not found in source.")
@@ -1005,7 +1005,7 @@ def get_function_signature(fun, *, is_method=False):
             raise ValueError(
                 f"Annotation problem in function {fun.name!r}: "
                 + f"{fun.lineno}:{fun.col_offset + 1}: {exc}"
-            )
+            ) from exc
     copy_type_comments_to_annotations(args)
 
     return args, returns
@@ -1025,8 +1025,10 @@ def parse_signature_type_comment(type_comment):
     """
     try:
         result = ast3.parse(type_comment, "<func_type>", "func_type")
-    except SyntaxError:
-        raise ValueError(f"invalid function signature type comment: {type_comment!r}")
+    except SyntaxError as exc:
+        raise ValueError(
+            f"invalid function signature type comment: {type_comment!r}"
+        ) from exc
 
     assert isinstance(result, ast3.FunctionType)
     if len(result.argtypes) == 1:
@@ -1147,11 +1149,10 @@ def copy_type_comment_to_annotation(arg):
 
 def normalize_strings_to_repr(node):
     """Normalize string leaf nodes to a repr since that is what we generate."""
-    if node.type == token.STRING:
+    if isinstance(node, Leaf) and node.type == token.STRING:
         node.value = repr(ast3.literal_eval(node.value))
     elif isinstance(node, Node):
         node.children = [normalize_strings_to_repr(i) for i in node.children]
-
     return node
 
 
@@ -1518,8 +1519,9 @@ _type_comment_re = re.compile(
 )
 
 
-__all__ = (
+__all__ = [
     "__version__",
     "retype_path",
     "retype_file",
-)
+    "ReApplyFlags",
+]
