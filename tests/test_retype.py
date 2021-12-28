@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 import os
 from contextlib import contextmanager
 from pathlib import Path
 from textwrap import dedent
-from typing import Iterator, Optional
+from typing import Iterator
 from unittest import TestCase, main
 
 from typed_ast import ast3
@@ -103,7 +104,7 @@ class RetypeTestCase(TestCase):
 class ImportTestCase(RetypeTestCase):
     IMPORT = "import x"
 
-    def _test_matched(self, matched: str, expected: Optional[str] = None) -> None:
+    def _test_matched(self, matched: str, expected: str | None = None) -> None:
         pyi = f"{self.IMPORT}\n"
         src = f"{matched}\n"
         expected = f"{expected if expected is not None else matched}\n"

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Re-apply type annotations from .pyi stubs to your codebase."""
+from __future__ import annotations
 
 import os
 import re
@@ -37,7 +38,7 @@ def retype_path(
         extra_ignore = []
         for folder in [pyi_dir, targets]:
             try:
-                extra_ignore.append("/{}".format(folder.relative_to(src)))
+                extra_ignore.append(f"/{folder.relative_to(src)}")
             except ValueError:
                 pass
         for file in walk_not_git_ignored(

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class ReApplyFlags:
 
     __slots__ = ("replace_any", "incremental")
