@@ -1,13 +1,6 @@
 # retype
 
-[![Latest version on
-PyPi](https://badge.fury.io/py/retype.svg)](https://badge.fury.io/py/retype)
-[![Supported Python
-versions](https://img.shields.io/pypi/pyversions/retype.svg)](https://pypi.org/project/retype/)
-![check](https://github.com/ambv/retype/workflows/check/badge.svg)
-[![Code style:
-black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Downloads](https://pepy.tech/badge/retype/month)](https://pepy.tech/project/retype/month)
+**!!! Note this project is no longer supported/maintained as of 2022 August 14th !!!**
 
 Re-apply type annotations from .pyi stubs to your codebase.
 
